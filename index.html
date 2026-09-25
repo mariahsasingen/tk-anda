@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="description" content="TOKO ANDA - Sistem Stok Barang">
+    <meta name="theme-color" content="#A6192E">
+    <title>TOKO ANDA - Inventory System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ========== CSS VARIABLES / TEMA ========== */
+        :root {
+            --primary: #A6192E;
+            --primary-dark: #7A1223;
+            --primary-light: #FBE1E4;
+            --success: #12764A;
+            --success-light: #DFF2E7;
+            --danger: #B92E25;
+            --danger-light: #FBE4E1;
+            --dark: #14283D;
+            --dark-light: #51667A;
+            --bg: #EEF2F6;
+            --surface: #FFFFFF;
+            --surface-2: #F6F8FB;
+            --border: #DAE2EA;
+            --border-dark: #AEBCCB;
+            --text: #14283D;
+            --text-2: #51667A;
+            --shadow: 0 1px 2px rgba(20, 40, 61, 0.08), 0 10px 30px rgba(20, 40, 61, 0.10);
+        }
+
+        /* Light mode - explicitly set */
+        :root[data-theme="light"] {
+            --bg: #EEF2F6;
+            --surface: #FFFFFF;
+            --surface-2: #F6F8FB;
+            --text: #14283D;
+            --text-2: #51667A;
+            --border: #DAE2EA;
+            --border-dark: #AEBCCB;
+        }
+
+        /* Dark mode */
+        :root[data-theme="dark"] {
+            --bg: #0E1720;
+            --surface: #16232F;
+            --surface-2: #1B2B3A;
+            --text: #E7EEF5;
+            --text-2: #9DB0C2;
+            --border: #263847;
+            --border-dark: #3C5265;
+        }
+
+        /* System preference dark mode (fallback) */
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --bg: #0E1720;
+                --surface: #16232F;
+                --surface-2: #1B2B3A;
+                --text: #E7EEF5;
+                --text-2: #9DB0C2;
+                --border: #263847;
+                --border-dark: #3C5265;
+            }
+        }
+
+        /* ========== RESET & BASE ========== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html {
+            scroll-behavior: smooth;
+            -webkit-text-size-adjust: 100%;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            font-size: 16px;
+            line-height: 1.5;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        body:has(dialog[open]) { overflow: hidden; }
+        [hidden] { display: none !important; }
+
+        /* ========== TOMBOL ========== */
+        .tombol {
+            min-height: 44px;
+            padding: 0 18px;
+            border-radius: 10px;
+            border: 1.5px solid transparent;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-family: inherit;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+        .tombol.utama {
+            background: var(--primary);
+            color: white;
+        }
+        .tombol.utama:hover { filter: brightness(.95); }
+        .tombol.sekunder {
+            border-color: var(--border-dark);
+            color: var(--text);
+            background: transparent;
+        }
+        .tombol.sekunder:hover { background: var(--surface-2); }
+        .tombol.sukses {
+            background: var(--success);
+            color: white;
+        }
+        .tombol.sukses:hover { filter: brightness(.95); }
+        .tombol[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+        /* ========== LOGIN PAGE ========== */
+        .login-screen {
+            min-height: 100dvh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+        }
+        .login-card {
+            width: min(380px, 100%);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 40px 24px;
+            box-shadow: var(--shadow);
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .login-header h1 {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+        .login-header p {
+            color: var(--text-2);
+            font-size: 14px;
+        }
+        .pin-input-group {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 32px;
+        }
+        .pin-box {
+            width: 100%;
+            aspect-ratio: 1;
+            border: 2px solid var(--border-dark);
+            border-radius: 12px;
+            font-size: 28px;
+            font-weight: 700;
+            text-align: center;
+            background: var(--surface);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .pin-box:hover { border-color: var(--primary); }
+        .pin-box.filled {
+            background: var(--primary-light);
+            border-color: var(--primary);
+            color: var(--primary-dark);
+        }
+        .pin-keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .pin-key {
+            aspect-ratio: 1;
+            border: 1.5px solid var(--border-dark);
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 18px;
+            background: var(--surface-2);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pin-key:hover {
+            background: var(--surface);
+            border-color: var(--primary);
+        }
+        .pin-key:active { transform: scale(0.95); }
+        .pin-delete {
+            grid-column: 1 / 3;
+            background: var(--danger-light);
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        /* ========== HEADER ========== */
+        .header {
+            background: var(--dark);
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            box-shadow: var(--shadow);
+        }
+        .brand {
+            font-weight: 800;
+            font-size: 18px;
+            letter-spacing: 0.01em;
+        }
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .btn-text {
+            background: none;
+            border: 0;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        .btn-text:hover { background: rgba(255, 255, 255, 0.1); }
+
+        /* ========== MAIN CONTENT ========== */
+        .container {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .page-title {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+        h1 {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.01em;
+        }
+        .subtitle {
+            color: var(--text-2);
+            font-size: 14px;
+        }
+
+        /* ========== STATS ========== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: var(--shadow);
+        }
+        .stat-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-2);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--primary);
+            margin-top: 8px;
+        }
+
+        /* ========== SEARCH ========== */
+        .search-box {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .search-box input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1.5px solid var(--border-dark);
+            border-radius: 10px;
+            background: var(--surface);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 16px;
+        }
+        .search-box input::placeholder { color: var(--text-2); }
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* ========== TABEL ========== */
+        .table-container {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow-x: auto;
+            box-shadow: var(--shadow);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 700;
+            font-size: 13px;
+            border-bottom: 1.5px solid var(--border-dark);
+            color: var(--text-2);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        tr:hover { background: var(--surface-2); }
+
+        /* ========== MODAL/DIALOG ========== */
+        dialog {
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            background: var(--surface);
+            padding: 0;
+            max-width: min(480px, 100%);
+        }
+        dialog::backdrop {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(2px);
+        }
+        .dialog-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 20px 24px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .dialog-header h2 {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .close-btn {
+            width: 44px;
+            height: 44px;
+            flex: none;
+            border-radius: 10px;
+            border: 0;
+            background: transparent;
+            font-size: 28px;
+            cursor: pointer;
+            color: var(--text-2);
+            transition: background 0.2s;
+        }
+        .close-btn:hover { background: var(--surface-2); }
+        .dialog-content {
+            padding: 16px 24px;
+            max-height: 85dvh;
+            overflow-y: auto;
+        }
+
+        /* ========== FORM ========== */
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: var(--text);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        input[type="text"],
+        input[type="number"],
+        input[type="date"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid var(--border-dark);
+            border-radius: 10px;
+            background: var(--surface);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 16px;
+        }
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        textarea { resize: vertical; min-height: 100px; }
+
+        /* ========== BUTTONS GROUP ========== */
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .button-group .tombol {
+            flex: 1;
+            min-width: 120px;
+        }
+
+        /* ========== ALERT BOX ========== */
+        .alert {
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            border-left: 4px solid;
+        }
+        .alert.info {
+            background: var(--success-light);
+            border-color: var(--success);
+            color: var(--success);
+        }
+        .alert.warning {
+            background: var(--danger-light);
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        /* ========== EMPTY STATE ========== */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-2);
+        }
+        .empty-state p { margin: 0; }
+
+        /* ========== TOAST ========== */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--text);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            z-index: 100;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 640px) {
+            .container { padding: 16px; }
+            h1 { font-size: 24px; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+            table { font-size: 14px; }
+            th, td { padding: 10px 8px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- ========== LOGIN SCREEN ========== -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-card">
+            <div class="login-header">
+                <h1>📦 TOKO ANDA</h1>
+                <p>Sistem Stok Barang</p>
+            </div>
+
+            <div class="pin-input-group" id="pinDisplay">
+                <div class="pin-box" id="pin0"></div>
+                <div class="pin-box" id="pin1"></div>
+                <div class="pin-box" id="pin2"></div>
+                <div class="pin-box" id="pin3"></div>
+            </div>
+
+            <div class="pin-keypad" id="pinKeypad"></div>
+        </div>
+    </div>
+
+    <!-- ========== MAIN APP ========== -->
+    <div id="mainApp" style="display: none;">
+        <!-- HEADER -->
+        <header class="header">
+            <div class="brand">📦 TOKO ANDA</div>
+            <div class="header-actions">
+                <button class="btn-text" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+                <button class="btn-text" onclick="logout()" title="Logout">🚪 Keluar</button>
+            </div>
+        </header>
+
+        <!-- MAIN CONTENT -->
+        <div class="container">
+            <!-- PAGE TITLE -->
+            <div class="page-title">
+                <div>
+                    <h1>Daftar Produk</h1>
+                    <p class="subtitle">Kelola stok barang toko</p>
+                </div>
+                <button class="tombol utama" onclick="showFormTambahProduk()">➕ Produk Baru</button>
+            </div>
+
+            <!-- STATS -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Produk</div>
+                    <div class="stat-value" id="statTotal">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Stok</div>
+                    <div class="stat-value" id="statStok">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Stok Rendah (&lt; 5)</div>
+                    <div class="stat-value" id="statRendah">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Nilai Inventori</div>
+                    <div class="stat-value" id="statNilai">0</div>
+                </div>
+            </div>
+
+            <!-- SEARCH -->
+            <div class="search-box">
+                <input type="search" id="searchInput" placeholder="Cari nama barang atau lokasi..." onkeyup="cariProduk()">
+            </div>
+
+            <!-- PRODUCT TABLE -->
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nama Barang</th>
+                            <th>Lokasi</th>
+                            <th>Stok</th>
+                            <th>Harga</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr><td colspan="5" class="empty-state">Belum ada produk. Tambahkan produk baru untuk memulai.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== DIALOG: TAMBAH/EDIT PRODUK ========== -->
+    <dialog id="formProdukDialog">
+        <div class="dialog-header">
+            <h2 id="formTitle">Produk Baru</h2>
+            <button class="close-btn" onclick="this.closest('dialog').close()">&times;</button>
+        </div>
+        <div class="dialog-content">
+            <form id="formProduk" onsubmit="simpanProduk(event)">
+                <div class="form-group">
+                    <label>Nama Barang *</label>
+                    <input type="text" id="inputNama" placeholder="contoh: Beras Premium" required>
+                </div>
+                <div class="form-group">
+                    <label>Lokasi *</label>
+                    <input type="text" id="inputLokasi" placeholder="contoh: Rak A1" required>
+                </div>
+                <div class="form-group">
+                    <label>Stok Awal *</label>
+                    <input type="number" id="inputStok" min="0" placeholder="0" required>
+                </div>
+                <div class="form-group">
+                    <label>Harga (Rp) *</label>
+                    <input type="number" id="inputHarga" min="0" placeholder="0" required>
+                </div>
+                <div class="button-group">
+                    <button type="submit" class="tombol utama">💾 Simpan</button>
+                    <button type="button" class="tombol sekunder" onclick="document.getElementById('formProdukDialog').close()">Batal</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <!-- ========== DIALOG: DETAIL & TRANSAKSI ========== -->
+    <dialog id="detailProdukDialog">
+        <div class="dialog-header">
+            <h2 id="detailNama">Nama Produk</h2>
+            <button class="close-btn" onclick="this.closest('dialog').close()">&times;</button>
+        </div>
+        <div class="dialog-content">
+            <!-- INFO PRODUK -->
+            <div class="alert info">
+                <strong>Stok Saat Ini:</strong> <span id="detailStok">0</span> | 
+                <strong>Harga:</strong> Rp <span id="detailHarga">0</span>
+            </div>
+
+            <!-- FORM TRANSAKSI -->
+            <form id="formTransaksi" onsubmit="simpanTransaksi(event)">
+                <div class="form-group">
+                    <label>Tanggal</label>
+                    <input type="date" id="inputTanggal" required>
+                </div>
+                <div class="form-group">
+                    <label>Jenis Transaksi *</label>
+                    <select id="inputJenis" required>
+                        <option value="">-- Pilih --</option>
+                        <option value="masuk">➕ Stok Masuk</option>
+                        <option value="keluar">➖ Stok Keluar</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Jumlah *</label>
+                    <input type="number" id="inputJumlah" min="1" placeholder="0" required>
+                </div>
+                <div class="form-group">
+                    <label>Catatan</label>
+                    <textarea id="inputCatatan" placeholder="Catatan transaksi (opsional)"></textarea>
+                </div>
+                <div class="button-group">
+                    <button type="submit" class="tombol sukses">✓ Simpan Transaksi</button>
+                </div>
+            </form>
+
+            <!-- RIWAYAT TRANSAKSI -->
+            <h3 style="margin-top: 24px; font-size: 16px; font-weight: 700; margin-bottom: 12px;">Riwayat Transaksi</h3>
+            <div id="riwayatTransaksi" style="font-size: 14px;"></div>
+
+            <!-- TOMBOL HAPUS -->
+            <div class="button-group" style="margin-top: 24px;">
+                <button class="tombol sekunder" onclick="editProduk()">✏️ Edit Produk</button>
+                <button class="tombol sekunder" style="background: var(--danger-light); border-color: var(--danger); color: var(--danger);" onclick="hapusProduk()">🗑️ Hapus</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- ========== SCRIPT ========== -->
+    <script>
+        // ========== INISIALISASI DATABASE ==========
+        let db;
+        const DEFAULT_PIN = "1234";
+        let currentUser = null;
+        let currentProductId = null;
+
+        const dbRequest = indexedDB.open("TokoAndaDB", 1);
+
+        dbRequest.onerror = () => {
+            showToast("Database error", "error");
+        };
+
+        dbRequest.onupgradeneeded = (event) => {
+            db = event.target.result;
+            if (!db.objectStoreNames.contains("products")) {
+                db.createObjectStore("products", { keyPath: "id", autoIncrement: true });
+            }
+            if (!db.objectStoreNames.contains("transactions")) {
+                db.createObjectStore("transactions", { keyPath: "id", autoIncrement: true });
+            }
+        };
+
+        dbRequest.onsuccess = (event) => {
+            db = event.target.result;
+            // Initialize theme
+            initializeTheme();
+            // Cek apakah sudah login
+            const savedUser = localStorage.getItem("tokoandaUser");
+            if (savedUser) {
+                showMainApp();
+                loadProducts();
+            } else {
+                showLoginScreen();
+            }
+        };
+
+        // ========== THEME TOGGLE ==========
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem("tokoandaTheme") || "light";
+            document.documentElement.setAttribute("data-theme", savedTheme);
+            updateThemeButton(savedTheme);
+        }
+
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
+            const newTheme = currentTheme === "light" ? "dark" : "light";
+            
+            document.documentElement.setAttribute("data-theme", newTheme);
+            localStorage.setItem("tokoandaTheme", newTheme);
+            updateThemeButton(newTheme);
+            
+            showToast(`Mode ${newTheme === "light" ? "Terang" : "Gelap"} diaktifkan`);
+        }
+
+        function updateThemeButton(theme) {
+            const btn = document.getElementById("themeToggle");
+            if (btn) {
+                btn.textContent = theme === "light" ? "🌙" : "☀️";
+            }
+        }
+
+        // ========== LOGIN SCREEN ==========
+        function showLoginScreen() {
+            document.getElementById("loginScreen").style.display = "grid";
+            document.getElementById("mainApp").style.display = "none";
+            generatePinKeypad();
+            setTodayDate();
+        }
+
+        function showMainApp() {
+            document.getElementById("loginScreen").style.display = "none";
+            document.getElementById("mainApp").style.display = "block";
+        }
+
+        function generatePinKeypad() {
+            const keypad = document.getElementById("pinKeypad");
+            keypad.innerHTML = "";
+            
+            const buttons = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
+            
+            buttons.forEach(num => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "pin-key";
+                btn.textContent = num;
+                btn.onclick = () => addPinNumber(num);
+                keypad.appendChild(btn);
+            });
+
+            const deleteBtn = document.createElement("button");
+            deleteBtn.type = "button";
+            deleteBtn.className = "pin-key pin-delete";
+            deleteBtn.textContent = "⌫ Hapus";
+            deleteBtn.onclick = removePinNumber;
+            keypad.appendChild(deleteBtn);
+        }
+
+        let pinInput = "";
+
+        function addPinNumber(num) {
+            if (pinInput.length < 4) {
+                pinInput += num;
+                updatePinDisplay();
+                if (pinInput.length === 4) {
+                    validatePin();
+                }
+            }
+        }
+
+        function removePinNumber() {
+            pinInput = pinInput.slice(0, -1);
+            updatePinDisplay();
+        }
+
+        function updatePinDisplay() {
+            for (let i = 0; i < 4; i++) {
+                const box = document.getElementById("pin" + i);
+                if (i < pinInput.length) {
+                    box.textContent = "•";
+                    box.classList.add("filled");
+                } else {
+                    box.textContent = "";
+                    box.classList.remove("filled");
+                }
+            }
+        }
+
+        function validatePin() {
+            if (pinInput === DEFAULT_PIN) {
+                localStorage.setItem("tokoandaUser", "authenticated");
+                pinInput = "";
+                updatePinDisplay();
+                showMainApp();
+                loadProducts();
+            } else {
+                showToast("PIN salah!", "error");
+                pinInput = "";
+                updatePinDisplay();
+            }
+        }
+
+        // ========== LOGOUT ==========
+        function logout() {
+            if (confirm("Logout dari aplikasi?")) {
+                localStorage.removeItem("tokoandaUser");
+                pinInput = "";
+                updatePinDisplay();
+                showLoginScreen();
+            }
+        }
+
+        // ========== LOAD & DISPLAY PRODUCTS ==========
+        function loadProducts() {
+            const transaction = db.transaction(["products"], "readonly");
+            const store = transaction.objectStore("products");
+            const request = store.getAll();
+
+            request.onsuccess = () => {
+                const products = request.result.sort((a, b) => a.nama.localeCompare(b.nama));
+                displayProducts(products);
+                updateStats(products);
+            };
+        }
+
+        function displayProducts(products) {
+            const tbody = document.getElementById("tableBody");
+            
+            if (products.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Belum ada produk. Tambahkan produk baru untuk memulai.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = products.map(p => {
+                const stokClass = p.stok < 5 ? 'style="color: var(--danger); font-weight: 600;"' : 'style="color: var(--success); font-weight: 600;"';
+                return `
+                    <tr>
+                        <td><strong>${escapeHtml(p.nama)}</strong></td>
+                        <td>${escapeHtml(p.lokasi)}</td>
+                        <td ${stokClass}>${p.stok}</td>
+                        <td>Rp ${Number(p.harga).toLocaleString("id-ID")}</td>
+                        <td>
+                            <button class="btn-text" onclick="showDetailProduk(${p.id})">👁️ Lihat</button>
+                            <button class="btn-text" style="color: var(--danger);" onclick="hapusProdukDirect(${p.id})">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            }).join("");
+        }
+
+        function updateStats(products) {
+            const totalProduk = products.length;
+            const totalStok = products.reduce((sum, p) => sum + p.stok, 0);
+            const stokRendah = products.filter(p => p.stok < 5).length;
+            const nilaiInventori = products.reduce((sum, p) => sum + (p.stok * p.harga), 0);
+
+            document.getElementById("statTotal").textContent = totalProduk;
+            document.getElementById("statStok").textContent = totalStok;
+            document.getElementById("statRendah").textContent = stokRendah;
+            document.getElementById("statNilai").textContent = "Rp " + nilaiInventori.toLocaleString("id-ID", { maximumFractionDigits: 0 });
+        }
+
+        // ========== SEARCH ==========
+        function cariProduk() {
+            const query = document.getElementById("searchInput").value.toLowerCase();
+            const transaction = db.transaction(["products"], "readonly");
+            const store = transaction.objectStore("products");
+            const request = store.getAll();
+
+            request.onsuccess = () => {
+                const filtered = request.result.filter(p =>
+                    p.nama.toLowerCase().includes(query) ||
+                    p.lokasi.toLowerCase().includes(query)
+                ).sort((a, b) => a.nama.localeCompare(b.nama));
+                
+                displayProducts(filtered);
+            };
+        }
+
+        // ========== FORM TAMBAH PRODUK ==========
+        function showFormTambahProduk() {
+            currentProductId = null;
+            document.getElementById("formTitle").textContent = "Produk Baru";
+            document.getElementById("inputNama").value = "";
+            document.getElementById("inputLokasi").value = "";
+            document.getElementById("inputStok").value = "";
+            document.getElementById("inputHarga").value = "";
+            document.getElementById("formProdukDialog").showModal();
+        }
+
+        function simpanProduk(event) {
+            event.preventDefault();
+            
+            const nama = document.getElementById("inputNama").value.trim();
+            const lokasi = document.getElementById("inputLokasi").value.trim();
+            const stok = parseInt(document.getElementById("inputStok").value);
+            const harga = parseFloat(document.getElementById("inputHarga").value);
+
+            if (!nama || !lokasi || !stok || !harga) {
+                showToast("Semua field harus diisi!", "warning");
+                return;
+            }
+
+            const transaction = db.transaction(["products"], "readwrite");
+            const store = transaction.objectStore("products");
+
+            if (currentProductId) {
+                store.put({
+                    id: currentProductId,
+                    nama,
+                    lokasi,
+                    stok,
+                    harga,
+                    createdAt: new Date().toISOString()
+                });
+            } else {
+                store.add({
+                    nama,
+                    lokasi,
+                    stok,
+                    harga,
+                    createdAt: new Date().toISOString()
+                });
+            }
+
+            transaction.oncomplete = () => {
+                showToast(currentProductId ? "Produk diupdate" : "Produk ditambahkan");
+                document.getElementById("formProdukDialog").close();
+                loadProducts();
+            };
+        }
+
+        // ========== DETAIL PRODUK ==========
+        function showDetailProduk(id) {
+            currentProductId = id;
+            const transaction = db.transaction(["products"], "readonly");
+            const store = transaction.objectStore("products");
+            const request = store.get(id);
+
+            request.onsuccess = () => {
+                const product = request.result;
+                if (product) {
+                    document.getElementById("detailNama").textContent = product.nama;
+                    document.getElementById("detailStok").textContent = product.stok;
+                    document.getElementById("detailHarga").textContent = Number(product.harga).toLocaleString("id-ID");
+                    
+                    // Set tanggal hari ini
+                    setTodayDate();
+                    
+                    // Load riwayat transaksi
+                    loadRiwayatTransaksi(id);
+                    
+                    document.getElementById("detailProdukDialog").showModal();
+                }
+            };
+        }
+
+        // ========== TRANSAKSI ==========
+        function setTodayDate() {
+            const today = new Date().toISOString().split('T')[0];
+            if (document.getElementById("inputTanggal")) {
+                document.getElementById("inputTanggal").value = today;
+            }
+        }
+
+        function simpanTransaksi(event) {
+            event.preventDefault();
+            
+            const tanggal = document.getElementById("inputTanggal").value;
+            const jenis = document.getElementById("inputJenis").value;
+            const jumlah = parseInt(document.getElementById("inputJumlah").value);
+            const catatan = document.getElementById("inputCatatan").value.trim();
+
+            if (!tanggal || !jenis || !jumlah) {
+                showToast("Semua field harus diisi!", "warning");
+                return;
+            }
+
+            // Update stok produk
+            const prodTransaction = db.transaction(["products"], "readwrite");
+            const prodStore = prodTransaction.objectStore("products");
+            const prodRequest = prodStore.get(currentProductId);
+
+            prodRequest.onsuccess = () => {
+                const product = prodRequest.result;
+                const newStok = jenis === "masuk" ? product.stok + jumlah : product.stok - jumlah;
+
+                if (newStok < 0) {
+                    showToast("Stok tidak cukup!", "warning");
+                    return;
+                }
+
+                product.stok = newStok;
+                prodStore.put(product);
+            };
+
+            // Simpan transaksi
+            const transTransaction = db.transaction(["transactions"], "readwrite");
+            const transStore = transTransaction.objectStore("transactions");
+            transStore.add({
+                productId: currentProductId,
+                tanggal,
+                jenis,
+                jumlah,
+                catatan,
+                createdAt: new Date().toISOString()
+            });
+
+            transTransaction.oncomplete = () => {
+                showToast("Transaksi disimpan");
+                document.getElementById("formTransaksi").reset();
+                setTodayDate();
+                loadRiwayatTransaksi(currentProductId);
+                loadProducts();
+            };
+        }
+
+        function loadRiwayatTransaksi(productId) {
+            const transaction = db.transaction(["transactions"], "readonly");
+            const store = transaction.objectStore("transactions");
+            const request = store.getAll();
+
+            request.onsuccess = () => {
+                const transaksi = request.result
+                    .filter(t => t.productId === productId)
+                    .sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+
+                const container = document.getElementById("riwayatTransaksi");
+                
+                if (transaksi.length === 0) {
+                    container.innerHTML = '<p style="color: var(--text-2);">Belum ada transaksi</p>';
+                    return;
+                }
+
+                container.innerHTML = transaksi.map(t => {
+                    const tgl = new Date(t.tanggal).toLocaleDateString("id-ID");
+                    const icon = t.jenis === "masuk" ? "➕" : "➖";
+                    const warna = t.jenis === "masuk" ? "var(--success)" : "var(--danger)";
+                    return `
+                        <div style="padding: 10px; border-bottom: 1px solid var(--border); color: var(--text);">
+                            <div style="display: flex; justify-content: space-between;">
+                                <strong>${tgl}</strong>
+                                <span style="color: ${warna}; font-weight: 700;">${icon} ${t.jumlah}</span>
+                            </div>
+                            ${t.catatan ? `<div style="font-size: 12px; color: var(--text-2); margin-top: 4px;">${escapeHtml(t.catatan)}</div>` : ''}
+                        </div>
+                    `;
+                }).join("");
+            };
+        }
+
+        // ========== EDIT & HAPUS ==========
+        function editProduk() {
+            const transaction = db.transaction(["products"], "readonly");
+            const store = transaction.objectStore("products");
+            const request = store.get(currentProductId);
+
+            request.onsuccess = () => {
+                const product = request.result;
+                document.getElementById("formTitle").textContent = "Edit Produk";
+                document.getElementById("inputNama").value = product.nama;
+                document.getElementById("inputLokasi").value = product.lokasi;
+                document.getElementById("inputStok").value = product.stok;
+                document.getElementById("inputHarga").value = product.harga;
+                
+                document.getElementById("detailProdukDialog").close();
+                document.getElementById("formProdukDialog").showModal();
+            };
+        }
+
+        function hapusProduk() {
+            if (confirm("Hapus produk ini beserta semua transaksinya?")) {
+                hapusProdukDirect(currentProductId);
+                document.getElementById("detailProdukDialog").close();
+            }
+        }
+
+        function hapusProdukDirect(id) {
+            // Hapus produk
+            const transaction = db.transaction(["products"], "readwrite");
+            const store = transaction.objectStore("products");
+            store.delete(id);
+
+            // Hapus transaksi terkait
+            const transTransaction = db.transaction(["transactions"], "readwrite");
+            const transStore = transTransaction.objectStore("transactions");
+            const request = transStore.getAll();
+
+            request.onsuccess = () => {
+                request.result
+                    .filter(t => t.productId === id)
+                    .forEach(t => transStore.delete(t.id));
+            };
+
+            transaction.oncomplete = () => {
+                showToast("Produk dihapus");
+                loadProducts();
+            };
+        }
+
+        // ========== UTILITY FUNCTIONS ==========
+        function showToast(message, type = "ok") {
+            const toast = document.createElement("div");
+            toast.className = "toast";
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#039;"
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+    </script>
+</body>
+</html>
