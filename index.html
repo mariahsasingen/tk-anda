@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+
+<!-- ================================================================
+     TOKO ANDA — STOK (PWA)
+     File layout (search for the [TAG] to jump):
+       [HEAD]      fonts, manifest, base CSS
+       [PIN]       S1  PIN lock screen
+       [HEADER]    top bar + tabs (Stok / Katalog / Kasir)
+       [STOK]      S2  main stock list (table + phone cards)
+       [SETTINGS]  S8  Cadangan & Pengaturan
+       [RINCIAN]   S5  item detail modal (monthly records)
+       [ITEM-FORM] S4  Barang baru / Edit barang
+       [RECORD]    S6  Catat stok / Edit catatan
+       [SCAN]      S3  Pindai kode (camera + scanner)
+       [CONFIRM]   S7  delete / restore confirmation
+       [TOAST]     small notification
+       [LOGIC]     JavaScript (database, rules, handlers) — tags start with [JS-
+     ================================================================ -->
+<x-dc>
+
+<!-- ================================================================
+     [HEAD] Meta, PWA manifest, fonts, base CSS
+     ================================================================ -->
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#13233b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Toko Anda">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;background:#eef0f3;color:#14223a;font-family:'Plus Jakarta Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box}
+button,input,textarea,select{font:inherit;color:inherit}
+input::placeholder,textarea::placeholder{color:#8a94a6}
+a{color:#a3182c}a:hover{color:#7d1020}
+</style>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#13233b"></rect><polygon points="50,28 70,39 50,50 30,39" fill="#e0485a"></polygon><polygon points="30,39 50,50 50,72 30,61" fill="#b31d31"></polygon><polygon points="70,39 50,50 50,72 70,61" fill="#8e1426"></polygon></svg></template>
+</helmet>
+
+
+<!-- ================================================================
+     [PIN] S1 · PIN lock screen (create / confirm / enter)
+     ================================================================ -->
+<sc-if value="{{ locked }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="PIN" style="min-height:100dvh;background:#13233b;display:flex;align-items:center;justify-content:center;padding:24px 16px">
+  <div style="width:100%;max-width:380px;display:flex;flex-direction:column;align-items:center;gap:22px">
+    <div style="display:flex;align-items:center;gap:10px;color:#fff;font-weight:800;font-size:22px;letter-spacing:-0.01em">
+      <svg width="28" height="28" viewBox="0 0 24 24"><polygon points="12,2 21,7 12,12 3,7" fill="#e0485a"></polygon><polygon points="3,7 12,12 12,22 3,17" fill="#b31d31"></polygon><polygon points="21,7 12,12 12,22 21,17" fill="#8e1426"></polygon></svg>
+      TOKO ANDA
+    </div>
+    <div style="width:100%;background:#fff;border-radius:20px;padding:28px 24px;display:flex;flex-direction:column;align-items:center;gap:18px">
+      <div style="text-align:center">
+        <h1 style="margin:0;font-size:24px;font-weight:800">{{ pinTitle }}</h1>
+        <p style="margin:6px 0 0;font-size:15px;color:#56627a;line-height:1.5;text-wrap:pretty">{{ pinSub }}</p>
+      </div>
+      <div style="display:flex;gap:10px">
+        <sc-for list="{{ pinDots }}" as="d" hint-placeholder-count="6">
+          <div style="width:44px;height:54px;border:1.5px solid #c9cfd8;border-radius:10px;display:flex;align-items:center;justify-content:center;background:#fff">
+            <sc-if value="{{ d.filled }}"><div style="width:14px;height:14px;border-radius:50%;background:#14223a"></div></sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <sc-if value="{{ hasPinError }}"><div style="font-size:14px;color:#c42b2b;font-weight:600">{{ pinError }}</div></sc-if>
+      <div style="width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+        <sc-for list="{{ keys }}" as="k" hint-placeholder-count="12">
+          <sc-if value="{{ k.blank }}"><div></div></sc-if>
+          <sc-if value="{{ k.isDigit }}"><button onClick="{{ k.onClick }}" style="height:60px;border:1px solid #dde1e7;border-radius:12px;background:#f7f8fa;font-size:24px;font-weight:700;cursor:pointer" style-active="background:#e6e9ee">{{ k.label }}</button></sc-if>
+          <sc-if value="{{ k.isDel }}"><button onClick="{{ k.onClick }}" style="height:60px;border:none;border-radius:12px;background:transparent;font-size:15px;font-weight:600;color:#56627a;cursor:pointer" style-active="background:#eef0f3">Hapus</button></sc-if>
+        </sc-for>
+      </div>
+    </div>
+    <p style="margin:0;font-size:13px;color:#9aa6b8;text-align:center">Data tersimpan di perangkat ini.</p>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ unlocked }}" hint-placeholder-val="{{ true }}">
+<div style="min-height:100dvh;background:#eef0f3">
+  
+<!-- ================================================================
+     [HEADER] Top bar: logo, Pengaturan, Keluar + tabs
+     ================================================================ -->
+<div style="background:#13233b;color:#fff;position:sticky;top:0;z-index:20">
+    <div style="max-width:1340px;margin:0 auto;padding:0 16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px">
+        <button onClick="{{ goStok }}" style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:21px;letter-spacing:-0.01em;white-space:nowrap;background:none;border:none;color:#fff;padding:6px 4px;cursor:pointer">
+          <svg width="26" height="26" viewBox="0 0 24 24"><polygon points="12,2 21,7 12,12 3,7" fill="#e0485a"></polygon><polygon points="3,7 12,12 12,22 3,17" fill="#b31d31"></polygon><polygon points="21,7 12,12 12,22 21,17" fill="#8e1426"></polygon></svg>
+          TOKO ANDA
+        </button>
+        <div style="display:flex;gap:2px">
+          <button onClick="{{ goSettings }}" style="background:none;border:none;color:#fff;font-weight:600;font-size:16px;padding:10px 12px;min-height:44px;cursor:pointer;border-radius:8px" style-hover="background:rgba(255,255,255,0.08)">Pengaturan</button>
+          <button onClick="{{ logout }}" style="background:none;border:none;color:#fff;font-weight:600;font-size:16px;padding:10px 12px;min-height:44px;cursor:pointer;border-radius:8px" style-hover="background:rgba(255,255,255,0.08)">Keluar</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;overflow-x:auto;margin-top:4px">
+        <sc-if value="{{ isStok }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ goStok }}" style="background:none;border:none;border-bottom:3px solid #c8283c;color:#fff;font-weight:700;font-size:17px;padding:10px 16px 12px;cursor:pointer;white-space:nowrap">Stok</button>
+        </sc-if>
+        <sc-if value="{{ isSettings }}">
+          <button onClick="{{ goStok }}" style="background:none;border:none;border-bottom:3px solid transparent;color:#b7c0cf;font-weight:600;font-size:17px;padding:10px 16px 12px;cursor:pointer;white-space:nowrap">Stok</button>
+        </sc-if>
+        <div style="display:flex;align-items:baseline;gap:8px;padding:10px 14px 12px;border-bottom:3px solid transparent;color:#8c97aa;font-size:17px;font-weight:600;white-space:nowrap;cursor:default">Katalog <span style="font-size:14px;font-weight:500;color:#6f7b90">segera</span></div>
+        <div style="display:flex;align-items:baseline;gap:8px;padding:10px 14px 12px;border-bottom:3px solid transparent;color:#8c97aa;font-size:17px;font-weight:600;white-space:nowrap;cursor:default">Kasir (POS) <span style="font-size:14px;font-weight:500;color:#6f7b90">segera</span></div>
+      </div>
+    </div>
+  </div>
+
+  
+<!-- ================================================================
+     [STOK] S2 · Stok Barang — title, buttons, search
+     ================================================================ -->
+<sc-if value="{{ isStok }}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="Stok Barang" style="max-width:1340px;margin:0 auto;padding:28px 16px 64px;display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px">
+      <div style="min-width:0;flex:1 1 320px">
+        <h1 style="margin:0;font-size:clamp(30px,5vw,40px);font-weight:800;letter-spacing:-0.02em;line-height:1.1">Stok Barang</h1>
+        <p style="margin:6px 0 0;font-size:16px;color:#46536a;line-height:1.5;text-wrap:pretty">Jumlah dihitung dalam dos. Stok awal dihitung dari awal <b style="color:#14223a">{{ monthLabel }}</b>.</p>
+      </div>
+      <div style="display:flex;gap:12px;flex:0 1 auto;flex-wrap:wrap">
+        <button onClick="{{ openScan }}" style="flex:1 1 auto;height:54px;padding:0 22px;border:1px solid #c9cfd8;border-radius:10px;background:#fff;font-weight:600;font-size:18px;cursor:pointer;white-space:nowrap" style-hover="background:#f3f5f8">Pindai kode</button>
+        <button onClick="{{ openNewItem }}" style="flex:1 1 auto;height:54px;padding:0 22px;border:none;border-radius:10px;background:#a3182c;color:#fff;font-weight:700;font-size:18px;cursor:pointer;white-space:nowrap" style-hover="background:#8a1323">+ Barang baru</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px">
+      <input type="search" value="{{ search }}" onChange="{{ onSearch }}" placeholder="Cari barang atau lokasi" style="flex:1;min-width:0;height:56px;padding:0 18px;border:1px solid #c9cfd8;border-radius:10px;font-size:18px;background:#fff;outline:none" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1">
+      <div style="font-size:16px;color:#56627a;white-space:nowrap">{{ countLabel }}</div>
+    </div>
+
+    
+<!-- ================================================================
+     [STOK-TABLE] Tablet / desktop table (7 columns)
+     ================================================================ -->
+<sc-if value="{{ showTable }}" hint-placeholder-val="{{ true }}">
+    <div style="background:#fff;border:1px solid #dde1e7;border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(20,34,58,0.05)">
+      <div style="display:grid;grid-template-columns:minmax(160px,2.2fr) minmax(100px,2fr) minmax(70px,0.8fr) minmax(84px,0.9fr) 130px 110px 124px;background:#f5f6f8;font-size:15px;font-weight:600;color:#3b475c">
+        <div style="padding:18px 20px">Nama Barang</div>
+        <div style="padding:18px 20px">Lokasi</div>
+        <div style="padding:18px 20px;text-align:right">Stok Awal</div>
+        <div style="padding:18px 20px;text-align:right">Total Stok</div>
+        <div style="padding:18px 10px 18px 20px">Rincian</div>
+        <div style="padding:18px 10px">Tambah</div>
+        <div style="padding:18px 10px">Hapus</div>
+      </div>
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+        <div style="display:grid;grid-template-columns:minmax(160px,2.2fr) minmax(100px,2fr) minmax(70px,0.8fr) minmax(84px,0.9fr) 130px 110px 124px;align-items:center;border-top:1px solid #e6e9ee">
+          <div style="padding:14px 20px;min-width:0">
+            <div style="font-size:18px;font-weight:700;overflow-wrap:anywhere">{{ r.name }}</div>
+            <sc-if value="{{ r.hasCode }}"><div style="font-size:14px;color:#5a6780;margin-top:2px">Kode {{ r.code }}</div></sc-if>
+          </div>
+          <div style="padding:14px 20px;font-size:18px;color:#2c3950;min-width:0;overflow-wrap:anywhere">{{ r.location }}</div>
+          <div style="padding:14px 20px;text-align:right;font-size:18px;color:#2c3950">{{ r.opening }}</div>
+          <div style="padding:14px 20px;text-align:right;font-size:22px;font-weight:800">{{ r.total }}</div>
+          <div style="padding:14px 10px 14px 20px"><button onClick="{{ r.onOpen }}" style="height:46px;padding:0 18px;border:1px solid #c9cfd8;border-radius:8px;background:#fff;font-size:18px;font-weight:500;cursor:pointer" style-hover="background:#f3f5f8">Buka</button></div>
+          <div style="padding:14px 10px"><button onClick="{{ r.onAdd }}" aria-label="Catat stok" style="width:56px;height:46px;border:1px solid #c9cfd8;border-radius:8px;background:#fff;font-size:22px;font-weight:600;cursor:pointer" style-hover="background:#f3f5f8">+</button></div>
+          <div style="padding:14px 10px"><button onClick="{{ r.onDelete }}" style="height:46px;padding:0 18px;border:1px solid #c8372d;border-radius:8px;background:#fff;color:#b3261e;font-size:18px;font-weight:500;cursor:pointer" style-hover="background:#fdf1f0">Hapus</button></div>
+        </div>
+      </sc-for>
+      <sc-if value="{{ noItems }}"><div style="padding:40px 20px;text-align:center;font-size:16px;color:#56627a;border-top:1px solid #e6e9ee">Belum ada barang. Tekan <b style="color:#14223a">+ Barang baru</b> untuk mulai.</div></sc-if>
+      <sc-if value="{{ noResults }}"><div style="padding:40px 20px;text-align:center;font-size:16px;color:#56627a;border-top:1px solid #e6e9ee">Tidak ada barang yang cocok dengan “{{ search }}”.</div></sc-if>
+    </div>
+    </sc-if>
+
+    
+<!-- ================================================================
+     [STOK-CARDS] Phone card list
+     ================================================================ -->
+<sc-if value="{{ showCards }}">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+        <div style="background:#fff;border:1px solid #dde1e7;border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+            <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
+              <div style="font-size:17px;font-weight:700;overflow-wrap:anywhere">{{ r.name }}</div>
+              <div style="font-size:14px;color:#2c3950">{{ r.location }}</div>
+              <sc-if value="{{ r.hasCode }}"><div style="font-size:13px;color:#5a6780">Kode {{ r.code }}</div></sc-if>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:28px;font-weight:800;line-height:1">{{ r.total }}</div>
+              <div style="font-size:12px;color:#5a6780;margin-top:4px;white-space:nowrap">dos · awal {{ r.opening }}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button onClick="{{ r.onOpen }}" style="flex:1;height:46px;border:1px solid #c9cfd8;border-radius:8px;background:#fff;font-size:16px;font-weight:600;cursor:pointer">Buka</button>
+            <button onClick="{{ r.onAdd }}" style="flex:1;height:46px;border:1px solid #c9cfd8;border-radius:8px;background:#fff;font-size:16px;font-weight:600;cursor:pointer">+ Catat</button>
+            <button onClick="{{ r.onDelete }}" style="height:46px;padding:0 14px;border:1px solid #c8372d;border-radius:8px;background:#fff;color:#b3261e;font-size:16px;font-weight:600;cursor:pointer">Hapus</button>
+          </div>
+        </div>
+      </sc-for>
+      <sc-if value="{{ noItems }}"><div style="padding:32px 16px;text-align:center;font-size:15px;color:#56627a;background:#fff;border:1px solid #dde1e7;border-radius:14px">Belum ada barang. Tekan <b style="color:#14223a">+ Barang baru</b> untuk mulai.</div></sc-if>
+      <sc-if value="{{ noResults }}"><div style="padding:32px 16px;text-align:center;font-size:15px;color:#56627a;background:#fff;border:1px solid #dde1e7;border-radius:14px">Tidak ada barang yang cocok dengan “{{ search }}”.</div></sc-if>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  
+<!-- ================================================================
+     [SETTINGS] S8 · Cadangan & Pengaturan
+     ================================================================ -->
+<sc-if value="{{ isSettings }}">
+  <div data-screen-label="Pengaturan" style="max-width:820px;margin:0 auto;padding:28px 16px 64px;display:flex;flex-direction:column;gap:20px">
+    <div>
+      <button onClick="{{ goStok }}" style="background:none;border:none;padding:6px 0;font-size:15px;font-weight:600;color:#46536a;cursor:pointer">‹ Kembali ke Stok</button>
+      <h1 style="margin:4px 0 0;font-size:clamp(30px,5vw,40px);font-weight:800;letter-spacing:-0.02em;line-height:1.1">Cadangan &amp; Pengaturan</h1>
+    </div>
+
+    <div style="background:#fff;border:1px solid #dde1e7;border-radius:14px;overflow:hidden">
+      <div style="padding:18px 20px;background:#f5f6f8">
+        <h2 style="margin:0;font-size:19px;font-weight:800">Barang terhapus</h2>
+        <p style="margin:4px 0 0;font-size:14px;color:#56627a">Pulihkan barang beserta semua catatan stoknya.</p>
+      </div>
+      <sc-for list="{{ deletedItems }}" as="d" hint-placeholder-count="0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-top:1px solid #e6e9ee">
+          <div style="min-width:0">
+            <div style="font-size:17px;font-weight:700">{{ d.name }}</div>
+            <div style="font-size:13px;color:#5a6780">{{ d.meta }}</div>
+          </div>
+          <button onClick="{{ d.onRestore }}" style="height:44px;padding:0 16px;border:1px solid #c9cfd8;border-radius:8px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;flex-shrink:0" style-hover="background:#f3f5f8">Pulihkan</button>
+        </div>
+      </sc-for>
+      <sc-if value="{{ noDeleted }}" hint-placeholder-val="{{ true }}"><div style="padding:18px 20px;border-top:1px solid #e6e9ee;font-size:15px;color:#56627a">Tidak ada barang yang dihapus.</div></sc-if>
+    </div>
+
+    <div style="background:#fff;border:1px solid #dde1e7;border-radius:14px;overflow:hidden">
+      <div style="padding:18px 20px;background:#f5f6f8">
+        <h2 style="margin:0;font-size:19px;font-weight:800">Cadangan data</h2>
+        <p style="margin:4px 0 0;font-size:14px;color:#56627a;line-height:1.5;text-wrap:pretty">Data hanya tersimpan di browser perangkat ini. Unduh cadangan secara rutin — data hilang jika data browser dibersihkan.</p>
+      </div>
+      <div style="padding:18px 20px;border-top:1px solid #e6e9ee;display:flex;flex-wrap:wrap;gap:10px">
+        <button onClick="{{ exportJSON }}" style="flex:1 1 200px;height:50px;padding:0 18px;border:none;border-radius:10px;background:#a3182c;color:#fff;font-size:16px;font-weight:700;cursor:pointer" style-hover="background:#8a1323">Unduh cadangan (.json)</button>
+        <button onClick="{{ pickImport }}" style="flex:1 1 200px;height:50px;padding:0 18px;border:1px solid #c9cfd8;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer" style-hover="background:#f3f5f8">Pulihkan dari file</button>
+        <button onClick="{{ exportCSV }}" style="flex:1 1 200px;height:50px;padding:0 18px;border:1px solid #c9cfd8;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer" style-hover="background:#f3f5f8">Unduh laporan (.csv)</button>
+        <input type="file" accept="application/json,.json" ref="{{ fileRef }}" onChange="{{ onImportFile }}" style="display:none">
+      </div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #dde1e7;border-radius:14px;overflow:hidden">
+      <div style="padding:18px 20px;background:#f5f6f8">
+        <h2 style="margin:0;font-size:19px;font-weight:800">Ganti PIN</h2>
+        <p style="margin:4px 0 0;font-size:14px;color:#56627a">PIN terdiri dari 6 angka.</p>
+      </div>
+      <div style="padding:18px 20px;border-top:1px solid #e6e9ee;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;align-items:end">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:15px;font-weight:600">PIN lama
+          <input type="password" inputMode="numeric" maxLength="6" value="{{ pinForm.old }}" onChange="{{ pinForm.onOld }}" style="height:50px;padding:0 14px;border:1px solid #c9cfd8;border-radius:10px;font-size:18px;letter-spacing:0.2em;outline:none;background:#fff" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:15px;font-weight:600">PIN baru
+          <input type="password" inputMode="numeric" maxLength="6" value="{{ pinForm.nw }}" onChange="{{ pinForm.onNew }}" style="height:50px;padding:0 14px;border:1px solid #c9cfd8;border-radius:10px;font-size:18px;letter-spacing:0.2em;outline:none;background:#fff" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:15px;font-weight:600">Ulangi PIN baru
+          <input type="password" inputMode="numeric" maxLength="6" value="{{ pinForm.cf }}" onChange="{{ pinForm.onCf }}" style="height:50px;padding:0 14px;border:1px solid #c9cfd8;border-radius:10px;font-size:18px;letter-spacing:0.2em;outline:none;background:#fff" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1">
+        </label>
+        <button onClick="{{ pinForm.onSave }}" style="height:50px;padding:0 18px;border:none;border-radius:10px;background:#a3182c;color:#fff;font-size:16px;font-weight:700;cursor:pointer" style-hover="background:#8a1323">Simpan PIN</button>
+      </div>
+      <sc-if value="{{ pinForm.hasError }}"><div style="margin:0 20px 18px;padding:10px 12px;border-radius:8px;background:#fdecec;color:#b3261e;font-size:14px">{{ pinForm.error }}</div></sc-if>
+    </div>
+
+    <div style="background:#fff;border:1px solid #dde1e7;border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:6px">
+      <h2 style="margin:0;font-size:19px;font-weight:800">Pasang di ponsel</h2>
+      <p style="margin:0;font-size:14px;color:#46536a;line-height:1.55;text-wrap:pretty">Android (Chrome): menu ⋮ → <b>Tambahkan ke layar utama</b>. iPhone (Safari): tombol Bagikan → <b>Tambah ke Layar Utama</b>. Setelah dipasang, aplikasi bisa dibuka tanpa internet.</p>
+    </div>
+  </div>
+  </sc-if>
+</div>
+</sc-if>
+
+
+<!-- ================================================================
+     [RINCIAN] S5 · Item detail modal — month nav, Stok Awal, records, Total stok
+     ================================================================ -->
+<sc-if value="{{ hasDetail }}">
+<div data-screen-label="Rincian" style="position:fixed;inset:0;z-index:50;background:rgba(19,35,59,0.5);display:flex;align-items:center;justify-content:center;padding:12px">
+  <div role="dialog" aria-modal="true" style="width:100%;max-width:1000px;max-height:calc(100dvh - 24px);overflow:auto;background:#fff;border-radius:20px;padding:22px clamp(16px,3vw,26px);display:grid;align-content:start;gap:14px;box-shadow:0 24px 60px rgba(10,20,40,0.3)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div style="min-width:0">
+        <h2 style="margin:0;font-size:clamp(22px,4vw,28px);font-weight:800;letter-spacing:-0.01em;overflow-wrap:anywhere">{{ detail.name }}</h2>
+        <div style="display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:4px;font-size:16px;color:#46536a">
+          <span>Lokasi: {{ detail.location }}</span><span>Kode: {{ detail.code }}</span>
+          <button onClick="{{ detail.onEditItem }}" style="background:none;border:none;padding:0;font-size:15px;font-weight:600;color:#a3182c;text-decoration:underline;text-underline-offset:3px;cursor:pointer">Edit info barang</button>
+        </div>
+      </div>
+      <button onClick="{{ detail.onClose }}" aria-label="Tutup" style="width:48px;height:48px;flex-shrink:0;border:1px solid transparent;border-radius:12px;background:#fff;font-size:26px;line-height:1;color:#46536a;cursor:pointer" style-hover="background:#f3f5f8" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1;outline:none">×</button>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <button onClick="{{ detail.onPrev }}" disabled="{{ detail.prevDisabled }}" aria-label="Bulan sebelumnya" style="width:54px;height:54px;border:1px solid #c9cfd8;border-radius:10px;background:#fff;font-size:22px;cursor:pointer;opacity:{{ detail.prevOpacity }}">‹</button>
+        <div style="font-size:clamp(18px,3vw,21px);font-weight:700;min-width:150px;text-align:center">{{ detail.monthLabel }}</div>
+        <button onClick="{{ detail.onNext }}" disabled="{{ detail.nextDisabled }}" aria-label="Bulan berikutnya" style="width:54px;height:54px;border:1px solid #c9cfd8;border-radius:10px;background:#fff;font-size:22px;cursor:pointer;opacity:{{ detail.nextOpacity }}">›</button>
+      </div>
+      <button onClick="{{ detail.onAddRecord }}" style="flex:0 1 auto;height:54px;padding:0 24px;border:none;border-radius:10px;background:#a3182c;color:#fff;font-size:19px;font-weight:700;cursor:pointer" style-hover="background:#8a1323">+ Catat stok</button>
+    </div>
+    <input type="search" value="{{ detail.search }}" onChange="{{ detail.onSearch }}" placeholder="Cari tanggal atau catatan" style="width:100%;height:54px;padding:0 18px;border:1px solid #c9cfd8;border-radius:10px;font-size:18px;background:#fff;outline:none" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1">
+    <div style="border:1px solid #e3c4c9;border-radius:12px;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:18px 18px;background:#fce4e7">
+        <div style="font-size:clamp(16px,2.6vw,19px);font-weight:700">Stok Awal {{ detail.monthLabel }}</div>
+        <div style="white-space:nowrap"><span style="font-size:24px;font-weight:800">{{ detail.opening }}</span> <span style="font-size:15px;color:#46536a">dos</span></div>
+      </div>
+      <sc-if value="{{ detail.wide }}" hint-placeholder-val="{{ true }}">
+        <div style="display:grid;grid-template-columns:150px 180px minmax(0,1fr) 100px 90px;background:#f5f6f8;border-top:1px solid #e3c4c9;font-size:15px;font-weight:600;color:#3b475c">
+          <div style="padding:14px 18px">Tanggal</div><div style="padding:14px 18px">Stok Masuk/Keluar</div><div style="padding:14px 18px">Catatan</div><div style="padding:14px 18px">Edit</div><div style="padding:14px 18px">Hapus</div>
+        </div>
+      </sc-if>
+      <div style="min-height:140px;border-top:1px solid #e6e9ee">
+        <sc-for list="{{ detail.rows }}" as="m" hint-placeholder-count="2">
+          <sc-if value="{{ detail.wide }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:150px 180px minmax(0,1fr) 100px 90px;align-items:center;border-bottom:1px solid #e6e9ee;opacity:{{ m.opacity }}">
+              <div style="padding:16px 18px;font-size:18px">{{ m.dateLabel }}</div>
+              <div style="padding:12px 18px">
+                <sc-if value="{{ m.isIn }}"><span style="display:inline-flex;min-width:84px;height:36px;padding:0 14px;align-items:center;justify-content:center;border-radius:18px;background:#dff3e6;color:#177a3c;font-size:18px;font-weight:800">{{ m.qtyLabel }}</span></sc-if>
+                <sc-if value="{{ m.isOut }}"><span style="display:inline-flex;min-width:84px;height:36px;padding:0 14px;align-items:center;justify-content:center;border-radius:18px;background:#fde2e2;color:#c42b2b;font-size:18px;font-weight:800">{{ m.qtyLabel }}</span></sc-if>
+              </div>
+              <div style="padding:16px 18px;font-size:18px;color:#46536a;min-width:0;overflow-wrap:anywhere">{{ m.note }}<sc-if value="{{ m.isDeleted }}"><span style="margin-left:8px;font-size:13px;font-weight:700;color:#b3261e">DIHAPUS</span></sc-if></div>
+              <sc-if value="{{ m.isActive }}">
+                <div style="padding:16px 18px"><button onClick="{{ m.onEdit }}" style="background:none;border:none;padding:4px 0;font-size:18px;font-weight:600;color:#14223a;text-decoration:underline;text-underline-offset:4px;cursor:pointer">Edit</button></div>
+                <div style="padding:16px 18px"><button onClick="{{ m.onDelete }}" style="background:none;border:none;padding:4px 0;font-size:18px;font-weight:600;color:#c42b2b;text-decoration:underline;text-underline-offset:4px;cursor:pointer">Hapus</button></div>
+              </sc-if>
+              <sc-if value="{{ m.isDeleted }}">
+                <div style="padding:16px 18px;grid-column:span 2"><button onClick="{{ m.onRestore }}" style="background:none;border:none;padding:4px 0;font-size:17px;font-weight:600;color:#14223a;text-decoration:underline;text-underline-offset:4px;cursor:pointer">Pulihkan</button></div>
+              </sc-if>
+            </div>
+          </sc-if>
+          <sc-if value="{{ detail.narrow }}">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #e6e9ee;opacity:{{ m.opacity }}">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                <div style="font-size:16px;font-weight:600">{{ m.dateLabel }}<sc-if value="{{ m.isDeleted }}"><span style="margin-left:8px;font-size:12px;font-weight:700;color:#b3261e">DIHAPUS</span></sc-if></div>
+                <div style="font-size:14px;color:#46536a;overflow-wrap:anywhere">{{ m.note }}</div>
+                <div style="display:flex;gap:18px;margin-top:4px">
+                  <sc-if value="{{ m.isActive }}">
+                    <button onClick="{{ m.onEdit }}" style="background:none;border:none;padding:6px 0;font-size:15px;font-weight:600;color:#14223a;text-decoration:underline;text-underline-offset:3px;cursor:pointer">Edit</button>
+                    <button onClick="{{ m.onDelete }}" style="background:none;border:none;padding:6px 0;font-size:15px;font-weight:600;color:#c42b2b;text-decoration:underline;text-underline-offset:3px;cursor:pointer">Hapus</button>
+                  </sc-if>
+                  <sc-if value="{{ m.isDeleted }}">
+                    <button onClick="{{ m.onRestore }}" style="background:none;border:none;padding:6px 0;font-size:15px;font-weight:600;color:#14223a;text-decoration:underline;text-underline-offset:3px;cursor:pointer">Pulihkan</button>
+                  </sc-if>
+                </div>
+              </div>
+              <sc-if value="{{ m.isIn }}"><span style="display:inline-flex;min-width:68px;height:34px;padding:0 12px;align-items:center;justify-content:center;border-radius:17px;background:#dff3e6;color:#177a3c;font-size:17px;font-weight:800;flex-shrink:0">{{ m.qtyLabel }}</span></sc-if>
+              <sc-if value="{{ m.isOut }}"><span style="display:inline-flex;min-width:68px;height:34px;padding:0 12px;align-items:center;justify-content:center;border-radius:17px;background:#fde2e2;color:#c42b2b;font-size:17px;font-weight:800;flex-shrink:0">{{ m.qtyLabel }}</span></sc-if>
+            </div>
+          </sc-if>
+        </sc-for>
+        <sc-if value="{{ detail.empty }}"><div style="padding:36px 18px;text-align:center;font-size:15px;color:#56627a">{{ detail.emptyText }}</div></sc-if>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:18px 18px;background:#fce4e7;border-top:1px solid #e3c4c9">
+        <div style="font-size:clamp(18px,3vw,22px);font-weight:700">Total stok</div>
+        <div style="white-space:nowrap"><span style="font-size:26px;font-weight:800">{{ detail.total }}</span> <span style="font-size:15px;color:#46536a">dos</span></div>
+      </div>
+    </div>
+    <label style="display:flex;align-items:center;gap:12px;font-size:16px;color:#46536a;cursor:pointer;min-height:44px">
+      <input type="checkbox" checked="{{ detail.showDeleted }}" onChange="{{ detail.onToggleDeleted }}" style="width:20px;height:20px;margin:0;accent-color:#a3182c">
+      Tampilkan catatan yang dihapus
+    </label>
+  </div>
+</div>
+</sc-if>
+
+
+<!-- ================================================================
+     [ITEM-FORM] S4 · Barang baru / Edit barang
+     ================================================================ -->
+<sc-if value="{{ ovItem }}">
+<div style="position:fixed;inset:0;z-index:60;background:rgba(19,35,59,0.5);display:flex;align-items:center;justify-content:center;padding:12px">
+  <div role="dialog" aria-modal="true" style="width:100%;max-width:700px;max-height:calc(100dvh - 24px);overflow:auto;background:#fff;border-radius:20px;padding:24px clamp(18px,3vw,26px);display:grid;align-content:start;gap:16px;box-shadow:0 24px 60px rgba(10,20,40,0.3)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div><h2 style="margin:0;font-size:26px;font-weight:800">{{ itemForm.title }}</h2><div style="margin-top:2px;font-size:17px;color:#56627a">Info barang</div></div>
+      <button onClick="{{ itemForm.onCancel }}" aria-label="Tutup" style="width:44px;height:44px;border:none;border-radius:10px;background:#fff;font-size:26px;color:#46536a;cursor:pointer" style-hover="background:#f3f5f8">×</button>
+    </div>
+    <label style="display:flex;flex-direction:column;gap:8px;font-size:18px;font-weight:600">Nama Barang
+      <input ref="{{ nameRef }}" value="{{ itemForm.name }}" onChange="{{ itemForm.onName }}" style="height:58px;padding:0 16px;border:1px solid #c9cfd8;border-radius:10px;font-size:18px;font-weight:400;outline:none;background:#fff" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1">
+      <sc-if value="{{ itemForm.errName }}"><span style="font-size:14px;font-weight:500;color:#c42b2b">{{ itemForm.errors.name }}</span></sc-if>
+    </label>
+    <label style="display:flex;flex-direction:column;gap:8px;font-size:18px;font-weight:600">Lokasi
+      <input value="{{ itemForm.location }}" onChange="{{ itemForm.onLocation }}" placeholder="mis. Rak A2 atau Gudang belakang" style="height:58px;padding:0 16px;border:1px solid #c9cfd8;border-radius:10px;font-size:18px;font-weight:400;outline:none;background:#fff" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1">
+    </label>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:18px;font-weight:600">Kode barang</div>
+      <div style="font-size:15px;color:#56627a;line-height:1.5">Opsional. Pindai barcode atau ketik manual. Dipakai untuk mencatat stok lewat pemindai.</div>
+      <div style="display:flex;gap:10px">
+        <input value="{{ itemForm.code }}" onChange="{{ itemForm.onCode }}" inputMode="numeric" aria-label="Kode barang" style="flex:1;min-width:0;height:58px;padding:0 16px;border:1px solid #c9cfd8;border-radius:10px;font-size:18px;outline:none;background:#fff" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1">
+        <button onClick="{{ itemForm.onScan }}" style="height:58px;padding:0 18px;border:1px solid #c9cfd8;border-radius:10px;background:#fff;font-size:17px;font-weight:600;cursor:pointer;flex-shrink:0" style-hover="background:#f3f5f8">Pindai</button>
+      </div>
+      <sc-if value="{{ itemForm.errCode }}"><span style="font-size:14px;color:#c42b2b">{{ itemForm.errors.code }}</span></sc-if>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:18px;font-weight:600">Stok Awal</div>
+      <div style="font-size:15px;color:#56627a">{{ itemForm.openingHint }}</div>
+      <input type="number" inputMode="numeric" min="0" step="1" value="{{ itemForm.opening }}" onChange="{{ itemForm.onOpening }}" aria-label="Stok Awal" style="height:58px;padding:0 16px;border:1px solid #c9cfd8;border-radius:10px;font-size:18px;outline:none;background:#fff" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1">
+      <sc-if value="{{ itemForm.errOpening }}"><span style="font-size:14px;color:#c42b2b">{{ itemForm.errors.opening }}</span></sc-if>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:4px">
+      <button onClick="{{ itemForm.onCancel }}" style="height:54px;padding:0 22px;border:1px solid #c9cfd8;border-radius:10px;background:#fff;font-size:18px;font-weight:600;cursor:pointer" style-hover="background:#f3f5f8">Batal</button>
+      <button onClick="{{ itemForm.onSave }}" style="height:54px;padding:0 26px;border:none;border-radius:10px;background:#a3182c;color:#fff;font-size:18px;font-weight:700;cursor:pointer" style-hover="background:#8a1323">Simpan</button>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+
+<!-- ================================================================
+     [RECORD] S6 · Catat stok / Edit catatan
+     ================================================================ -->
+<sc-if value="{{ ovRecord }}">
+<div style="position:fixed;inset:0;z-index:60;background:rgba(19,35,59,0.5);display:flex;align-items:center;justify-content:center;padding:12px">
+  <div role="dialog" aria-modal="true" style="width:100%;max-width:700px;max-height:calc(100dvh - 24px);overflow:auto;background:#fff;border-radius:20px;padding:24px clamp(18px,3vw,26px);display:grid;align-content:start;gap:16px;box-shadow:0 24px 60px rgba(10,20,40,0.3)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div style="min-width:0">
+        <h2 style="margin:0;font-size:26px;font-weight:800;overflow-wrap:anywhere">{{ rec.name }}</h2>
+        <div style="margin-top:2px;font-size:17px;color:#46536a">{{ rec.modeLabel }} Total stok saat ini <b style="color:#14223a">{{ rec.currentTotal }}</b> dos.</div>
+        <sc-if value="{{ rec.fromScan }}"><div style="display:inline-flex;margin-top:8px;padding:4px 10px;border-radius:6px;background:#eef0f3;font-size:13px;color:#46536a">Dari pindai kode · {{ rec.code }}</div></sc-if>
+      </div>
+      <button onClick="{{ rec.onCancel }}" aria-label="Tutup" style="width:44px;height:44px;border:none;border-radius:10px;background:#fff;font-size:26px;color:#46536a;cursor:pointer;flex-shrink:0" style-hover="background:#f3f5f8">×</button>
+    </div>
+    <label style="display:flex;flex-direction:column;gap:8px;font-size:18px;font-weight:600">Tanggal
+      <input type="date" value="{{ rec.date }}" min="{{ rec.minDate }}" max="{{ rec.maxDate }}" onChange="{{ rec.onDate }}" style="height:58px;padding:0 16px;border:1px solid #c9cfd8;border-radius:10px;font-size:18px;font-weight:400;outline:none;background:#fff;width:100%" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1">
+    </label>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <label style="display:flex;flex-direction:column;gap:8px;font-size:18px;font-weight:600;color:#177a3c">Stok Masuk (+)
+          <input ref="{{ masukRef }}" type="number" inputMode="numeric" min="0" step="1" placeholder="0" value="{{ rec.masuk }}" onChange="{{ rec.onMasuk }}" style="height:58px;padding:0 16px;border:1px solid #3d9a5c;border-radius:10px;font-size:18px;font-weight:400;color:#14223a;outline:none;background:#fff;width:100%" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:8px;font-size:18px;font-weight:600;color:#c42b2b">Stok Keluar (−)
+          <input type="number" inputMode="numeric" min="0" step="1" placeholder="0" value="{{ rec.keluar }}" onChange="{{ rec.onKeluar }}" style="height:58px;padding:0 16px;border:1px solid #d45a55;border-radius:10px;font-size:18px;font-weight:400;color:#14223a;outline:none;background:#fff;width:100%" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1">
+        </label>
+      </div>
+      <div style="font-size:15px;color:#56627a">Isi salah satu. Jumlah dihitung dalam dos yang dibuka.</div>
+    </div>
+    <label style="display:flex;flex-direction:column;gap:8px;font-size:18px;font-weight:600">Catatan
+      <textarea value="{{ rec.note }}" onChange="{{ rec.onNote }}" rows="3" placeholder="mis. Restok dari agen, terjual grosir" style="padding:14px 16px;border:1px solid #c9cfd8;border-radius:10px;font-size:18px;font-weight:400;outline:none;background:#fff;resize:vertical;min-height:100px" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1"></textarea>
+    </label>
+    <sc-if value="{{ rec.hasError }}"><div style="padding:12px 14px;border-radius:10px;background:#fdecec;color:#b3261e;font-size:15px;font-weight:500">{{ rec.error }}</div></sc-if>
+    <sc-if value="{{ rec.hasWarn }}"><div style="padding:12px 14px;border-radius:10px;background:#fff4df;color:#8a5300;font-size:15px;font-weight:500">{{ rec.warn }}</div></sc-if>
+    <div style="display:flex;justify-content:flex-end;gap:12px">
+      <button onClick="{{ rec.onCancel }}" style="height:54px;padding:0 22px;border:1px solid #c9cfd8;border-radius:10px;background:#fff;font-size:18px;font-weight:600;cursor:pointer" style-hover="background:#f3f5f8">Batal</button>
+      <button onClick="{{ rec.onSave }}" style="height:54px;padding:0 26px;border:none;border-radius:10px;background:#a3182c;color:#fff;font-size:18px;font-weight:700;cursor:pointer" style-hover="background:#8a1323">Selesai</button>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+
+<!-- ================================================================
+     [SCAN] S3 · Pindai kode barang (camera + hardware scanner)
+     ================================================================ -->
+<sc-if value="{{ ovScan }}">
+<div style="position:fixed;inset:0;z-index:60;background:rgba(19,35,59,0.5);display:flex;align-items:center;justify-content:center;padding:12px">
+  <div role="dialog" aria-modal="true" style="width:100%;max-width:700px;max-height:calc(100dvh - 24px);overflow:auto;background:#fff;border-radius:20px;padding:24px clamp(18px,3vw,26px);display:grid;align-content:start;gap:16px;box-shadow:0 24px 60px rgba(10,20,40,0.3)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div><h2 style="margin:0;font-size:26px;font-weight:800">Pindai kode barang</h2><div style="margin-top:2px;font-size:17px;color:#56627a;line-height:1.5">Arahkan alat pemindai ke barcode, atau ketik kodenya lalu tekan Enter.</div></div>
+      <button onClick="{{ scan.onClose }}" aria-label="Tutup" style="width:44px;height:44px;border:none;border-radius:10px;background:#fff;font-size:26px;color:#46536a;cursor:pointer;flex-shrink:0" style-hover="background:#f3f5f8">×</button>
+    </div>
+    <sc-if value="{{ scan.camOn }}">
+      <div style="position:relative;border-radius:14px;overflow:hidden;background:#0c1626;aspect-ratio:4/3">
+        <video ref="{{ videoRef }}" playsInline="{{ true }}" muted="{{ true }}" style="width:100%;height:100%;object-fit:cover;display:block"></video>
+        <div style="position:absolute;left:12%;right:12%;top:42%;height:0;border-top:2px solid #e0485a;box-shadow:0 0 12px #e0485a"></div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ scan.hasCamMsg }}"><div style="font-size:14px;color:#46536a">{{ scan.camMsg }}</div></sc-if>
+    <label style="display:flex;flex-direction:column;gap:8px;font-size:18px;font-weight:600">Kode barang
+      <input ref="{{ scanRef }}" inputMode="numeric" value="{{ scan.code }}" onChange="{{ scan.onCode }}" onKeyDown="{{ scan.onKey }}" style="height:58px;padding:0 16px;border:1px solid #c9cfd8;border-radius:10px;font-size:18px;font-weight:400;outline:none;background:#fff" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1">
+    </label>
+    <sc-if value="{{ scan.hasError }}"><div style="padding:12px 14px;border-radius:10px;background:#fdecec;color:#b3261e;font-size:15px;font-weight:500;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px">
+      <span>{{ scan.error }}</span>
+      <sc-if value="{{ scan.notFound }}"><button onClick="{{ scan.onCreate }}" style="height:40px;padding:0 14px;border:1px solid #c8372d;border-radius:8px;background:#fff;color:#b3261e;font-size:15px;font-weight:600;cursor:pointer">+ Buat barang baru</button></sc-if>
+    </div></sc-if>
+    <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px">
+      <sc-if value="{{ scan.canCam }}"><button onClick="{{ scan.onCam }}" style="height:54px;padding:0 20px;border:1px solid #c9cfd8;border-radius:10px;background:#fff;font-size:17px;font-weight:600;cursor:pointer" style-hover="background:#f3f5f8">{{ scan.camLabel }}</button></sc-if>
+      <div style="display:flex;gap:12px;margin-left:auto">
+        <button onClick="{{ scan.onClose }}" style="height:54px;padding:0 22px;border:1px solid #c9cfd8;border-radius:10px;background:#fff;font-size:18px;font-weight:600;cursor:pointer" style-hover="background:#f3f5f8">Tutup</button>
+        <button onClick="{{ scan.onSubmit }}" style="height:54px;padding:0 26px;border:none;border-radius:10px;background:#a3182c;color:#fff;font-size:18px;font-weight:700;cursor:pointer" style-hover="background:#8a1323">Lanjut</button>
+      </div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+
+<!-- ================================================================
+     [CONFIRM] S7 · Delete / restore confirmation
+     ================================================================ -->
+<sc-if value="{{ ovConfirm }}">
+<div style="position:fixed;inset:0;z-index:70;background:rgba(19,35,59,0.5);display:flex;align-items:center;justify-content:center;padding:12px">
+  <div role="alertdialog" aria-modal="true" style="width:100%;max-width:520px;max-height:calc(100dvh - 24px);overflow:auto;background:#fff;border-radius:20px;padding:26px;display:grid;align-content:start;gap:12px;box-shadow:0 24px 60px rgba(10,20,40,0.3)">
+    <h2 style="margin:0;font-size:24px;font-weight:800;overflow-wrap:anywhere">{{ confirm.title }}</h2>
+    <p style="margin:0;font-size:17px;line-height:1.6;color:#46536a;text-wrap:pretty">{{ confirm.body }}</p>
+    <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:8px">
+      <button ref="{{ cancelRef }}" onClick="{{ confirm.onCancel }}" style="height:54px;padding:0 22px;border:1px solid #c9cfd8;border-radius:10px;background:#fff;font-size:18px;font-weight:600;cursor:pointer" style-hover="background:#f3f5f8" style-focus="border-color:#1f5fd1;box-shadow:0 0 0 2px #1f5fd1;outline:none">Batal</button>
+      <button onClick="{{ confirm.onConfirm }}" style="height:54px;padding:0 24px;border:none;border-radius:10px;background:#c8372d;color:#fff;font-size:18px;font-weight:700;cursor:pointer" style-hover="background:#ad2c23">{{ confirm.label }}</button>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+
+<!-- ================================================================
+     [TOAST] Notification
+     ================================================================ -->
+<sc-if value="{{ hasToast }}">
+<div style="position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:80;background:#13233b;color:#fff;padding:14px 20px;border-radius:12px;font-size:16px;font-weight:600;box-shadow:0 10px 30px rgba(10,20,40,0.3);max-width:calc(100% - 32px);text-align:center">{{ toast }}</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;fontFamily&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Plus Jakarta Sans&quot;,&quot;IBM Plex Sans&quot;,&quot;Source Sans 3&quot;],&quot;default&quot;:&quot;Plus Jakarta Sans&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tampilan&quot;},&quot;layoutMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;cards&quot;,&quot;table&quot;],&quot;default&quot;:&quot;cards&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tampilan&quot;}}">
+/* ================================================================
+   [LOGIC] JavaScript — search a tag to jump:
+     [JS-DATE] [JS-DB] [JS-STOCK] [JS-START] [JS-PIN] [JS-ITEM]
+     [JS-RECORD] [JS-SCAN] [JS-DELETE] [JS-BACKUP] [JS-RENDER]
+   [JS-RENDER] feeds every {{ hole }} in the HTML above.
+   ================================================================ */
+class Component extends DCLogic {
+  static MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  static MSHORT = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+
+  state = {
+    ready: false, items: [], moves: [], pinRec: null,
+    locked: true, pinStep: 'enter', pin: '', pinFirst: '', pinError: '',
+    view: 'stok', search: '', width: window.innerWidth,
+    detailId: null, detailMonth: null, detailSearch: '', showDeleted: false,
+    overlay: null, itemForm: null, recForm: null, scan: null, confirm: null, toast: null,
+    pinForm: { old: '', nw: '', cf: '', error: '' },
+  };
+  nameRef = React.createRef(); masukRef = React.createRef(); scanRef = React.createRef();
+  cancelRef = React.createRef(); videoRef = React.createRef(); fileRef = React.createRef();
+
+  /* ==================== [JS-DATE] Date helpers ==================== */
+  pad(n) { return String(n).padStart(2, '0'); }
+  today() { const d = new Date(); return `${d.getFullYear()}-${this.pad(d.getMonth() + 1)}-${this.pad(d.getDate())}`; }
+  addMonth(k, n) { const [y, m] = k.split('-').map(Number); const t = y * 12 + (m - 1) + n; return `${Math.floor(t / 12)}-${this.pad(t % 12 + 1)}`; }
+  monthLabel(k) { const [y, m] = k.split('-').map(Number); return `${Component.MONTHS[m - 1]} ${y}`; }
+  dateLabel(s) { const [y, m, d] = s.split('-').map(Number); return `${d} ${Component.MSHORT[m - 1]} ${y}`; }
+  num(n) { return n < 0 ? '−' + Math.abs(n) : String(n); }
+  uid() { return (crypto.randomUUID && crypto.randomUUID()) || (Date.now().toString(36) + Math.random().toString(36).slice(2)); }
+  now() { return new Date().toISOString(); }
+
+  /* ==================== [JS-DB] IndexedDB: items, movements, settings ==================== */
+  db() {
+    if (!this._dbp) this._dbp = new Promise((res, rej) => {
+      const r = indexedDB.open('tokoanda-stok', 1);
+      r.onupgradeneeded = () => {
+        const d = r.result;
+        ['items', 'movements'].forEach(s => { if (!d.objectStoreNames.contains(s)) d.createObjectStore(s, { keyPath: 'id' }); });
+        if (!d.objectStoreNames.contains('settings')) d.createObjectStore('settings', { keyPath: 'key' });
+      };
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+    return this._dbp;
+  }
+  async tx(store, mode, fn) {
+    const d = await this.db();
+    return new Promise((res, rej) => {
+      const t = d.transaction(store, mode); const out = fn(t.objectStore(store));
+      t.oncomplete = () => res(out && 'result' in out ? out.result : undefined); t.onerror = () => rej(t.error);
+    });
+  }
+  getAll(store) { return this.tx(store, 'readonly', s => s.getAll()); }
+  putMany(store, list) { return this.tx(store, 'readwrite', s => { list.forEach(o => s.put(o)); }); }
+  replaceAll(store, list) { return this.tx(store, 'readwrite', s => { s.clear(); list.forEach(o => s.put(o)); }); }
+
+  async saveItem(item) { await this.putMany('items', [item]); this.setState(s => ({ items: s.items.some(i => i.id === item.id) ? s.items.map(i => i.id === item.id ? item : i) : [...s.items, item] })); }
+  async saveMove(mv) { await this.putMany('movements', [mv]); this.setState(s => ({ moves: s.moves.some(m => m.id === mv.id) ? s.moves.map(m => m.id === mv.id ? mv : m) : [...s.moves, mv] })); }
+
+  seedData() {
+    const cur = this.today().slice(0, 7), td = Number(this.today().slice(8)), t = this.now();
+    const day = n => `${cur}-${this.pad(Math.min(n, td))}`;
+    const spec = [
+      ['Air mineral 600 ml', 'Gudang belakang', '8990000000011', 38, [[12, -8, 'Terjual'], [21, 24, 'Restok']]],
+      ['Gula pasir 1 kg', 'Rak A1', '8990000000028', 10, [[15, 6, 'Restok']]],
+      ['Kopi sachet', 'Rak B2', '8990000000035', 14, [[18, -5, 'Terjual']]],
+      ['Mi instan goreng', 'Rak A3', '8990000000042', 25, [[8, 24, 'Restok dari agen'], [20, -4, 'Terjual']]],
+      ['Minyak goreng 2 L', 'Gudang belakang', '8990000000059', 24, [[19, -6, 'Terjual grosir']]],
+      ['Teh celup', 'Rak B1', '8990000000066', 12, [[10, 8, 'Restok']]],
+    ];
+    const items = [], moves = [];
+    spec.forEach(([name, location, code, opening, mv]) => {
+      const id = this.uid();
+      items.push({ id, name, location, code, opening_qty: opening, opening_month: cur, created_at: t, updated_at: t, deleted_at: null });
+      mv.forEach(([d, qty, note]) => moves.push({ id: this.uid(), item_id: id, date: day(d), qty, note, source: 'manual', created_at: t, updated_at: t, deleted_at: null }));
+    });
+    return { items, moves };
+  }
+
+  /* ==================== [JS-STOCK] Stok Awal / Total stok calculation ==================== */
+  stockAt(item, M) {
+    const start = M + '-01'; let opening = item.opening_qty, inMonth = 0;
+    for (const m of this.state.moves) {
+      if (m.item_id !== item.id || m.deleted_at) continue;
+      if (m.date < start) opening += m.qty; else if (m.date.slice(0, 7) === M) inMonth += m.qty;
+    }
+    return { opening, total: opening + inMonth };
+  }
+
+  /* ==================== [JS-START] Start-up, resize, keyboard, service worker ==================== */
+  async componentDidMount() {
+    this._onResize = () => this.setState({ width: window.innerWidth });
+    this._onKey = e => this.handleKey(e);
+    window.addEventListener('resize', this._onResize); window.addEventListener('keydown', this._onKey);
+    this.applyFont();
+    if ('serviceWorker' in navigator && location.protocol === 'https:' && window.top === window) navigator.serviceWorker.register('sw.js').catch(() => {});
+    try {
+      let [items, moves, settings] = await Promise.all([this.getAll('items'), this.getAll('movements'), this.getAll('settings')]);
+      if (!settings.some(s => s.key === 'seeded') && !items.length) {
+        const sd = this.seedData(); await this.putMany('items', sd.items); await this.putMany('movements', sd.moves);
+        await this.putMany('settings', [{ key: 'seeded', value: true }]); items = sd.items; moves = sd.moves;
+      }
+      const pinRec = settings.find(s => s.key === 'pin') || null;
+      const unlocked = !!pinRec && sessionStorage.getItem('tokoanda_unlocked') === '1';
+      this.setState({ ready: true, items, moves, pinRec, locked: !unlocked, pinStep: pinRec ? 'enter' : 'create' });
+    } catch (e) { this.setState({ ready: true }); this.showToast('Penyimpanan tidak tersedia: ' + e); }
+  }
+  componentWillUnmount() { window.removeEventListener('resize', this._onResize); window.removeEventListener('keydown', this._onKey); this.stopCam(); }
+  componentDidUpdate(pp, ps) {
+    if (pp.fontFamily !== this.props.fontFamily) this.applyFont();
+    if (ps.overlay !== this.state.overlay) {
+      const r = { item: this.nameRef, record: this.masukRef, scan: this.scanRef, confirm: this.cancelRef }[this.state.overlay];
+      if (r) setTimeout(() => r.current && r.current.focus(), 30);
+    }
+  }
+  applyFont() { const f = this.props.fontFamily ?? 'Plus Jakarta Sans'; document.body.style.fontFamily = `'${f}', system-ui, sans-serif`; }
+  showToast(msg) { clearTimeout(this._tt); this.setState({ toast: msg }); this._tt = setTimeout(() => this.setState({ toast: null }), 2600); }
+
+  handleKey(e) {
+    const s = this.state;
+    if (s.locked) {
+      if (/^\d$/.test(e.key)) this.pinPress(e.key); else if (e.key === 'Backspace') this.pinBack();
+      return;
+    }
+    if (e.key !== 'Escape') return;
+    if (s.overlay === 'confirm') this.setState({ overlay: s.confirm && s.confirm.back || null, confirm: null });
+    else if (s.overlay === 'scan') this.closeScan();
+    else if (s.overlay) this.setState({ overlay: null });
+    else if (s.detailId) this.setState({ detailId: null });
+  }
+
+  /* ==================== [JS-PIN] PIN lock, logout, change PIN ==================== */
+  async hash(salt, pin) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + ':' + pin)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); }
+  pinPress(d) {
+    if (this.state.pin.length >= 6) return;
+    const pin = this.state.pin + d;
+    this.setState({ pin, pinError: '' });
+    if (pin.length === 6) setTimeout(() => this.pinDone(pin), 150);
+  }
+  pinBack() { this.setState(s => ({ pin: s.pin.slice(0, -1), pinError: '' })); }
+  async pinDone(pin) {
+    const s = this.state;
+    if (s.pinStep === 'enter') {
+      if (await this.hash(s.pinRec.salt, pin) === s.pinRec.hash) { sessionStorage.setItem('tokoanda_unlocked', '1'); this.setState({ locked: false, pin: '' }); }
+      else this.setState({ pin: '', pinError: 'PIN salah. Coba lagi.' });
+    } else if (s.pinStep === 'create') this.setState({ pinFirst: pin, pin: '', pinStep: 'confirm' });
+    else {
+      if (pin !== s.pinFirst) { this.setState({ pin: '', pinFirst: '', pinStep: 'create', pinError: 'PIN tidak sama. Buat ulang PIN.' }); return; }
+      const salt = this.uid(); const rec = { key: 'pin', salt, hash: await this.hash(salt, pin) };
+      await this.putMany('settings', [rec]); sessionStorage.setItem('tokoanda_unlocked', '1');
+      this.setState({ pinRec: rec, locked: false, pin: '', pinFirst: '', pinStep: 'enter' }); this.showToast('PIN dibuat');
+    }
+  }
+  logout() { this.stopCam(); sessionStorage.removeItem('tokoanda_unlocked'); this.setState({ locked: true, pin: '', pinStep: 'enter', pinError: '', overlay: null, detailId: null, view: 'stok' }); }
+  async changePin() {
+    const f = this.state.pinForm, set = error => this.setState(s => ({ pinForm: { ...s.pinForm, error } }));
+    if (await this.hash(this.state.pinRec.salt, f.old) !== this.state.pinRec.hash) return set('PIN lama salah.');
+    if (!/^\d{6}$/.test(f.nw)) return set('PIN baru harus 6 angka.');
+    if (f.nw !== f.cf) return set('Ulangi PIN baru tidak sama.');
+    const salt = this.uid(); const rec = { key: 'pin', salt, hash: await this.hash(salt, f.nw) };
+    await this.putMany('settings', [rec]);
+    this.setState({ pinRec: rec, pinForm: { old: '', nw: '', cf: '', error: '' } }); this.showToast('PIN berhasil diganti');
+  }
+
+  /* ==================== [JS-ITEM] Barang baru / Edit barang ==================== */
+  openNewItem(code = '') { this.setState({ overlay: 'item', itemForm: { id: null, name: '', location: '', code, opening: '', errors: {} } }); }
+  openEditItem(i) { this.setState({ overlay: 'item', itemForm: { id: i.id, name: i.name, location: i.location || '', code: i.code || '', opening: String(i.opening_qty), errors: {} } }); }
+  setIF(k, v) { this.setState(s => ({ itemForm: { ...s.itemForm, [k]: v, errors: { ...s.itemForm.errors, [k]: '' } } })); }
+  async submitItem() {
+    const f = this.state.itemForm, errors = {};
+    const name = f.name.trim(), code = f.code.trim(), op = f.opening.trim();
+    if (!name) errors.name = 'Nama barang wajib diisi.';
+    if (op === '' || !/^\d+$/.test(op)) errors.opening = 'Isi jumlah dos (angka 0 atau lebih).';
+    const dup = code && this.state.items.find(i => i.code === code && i.id !== f.id);
+    if (dup) errors.code = `Kode sudah dipakai oleh “${dup.name}”${dup.deleted_at ? ' (terhapus)' : ''}.`;
+    if (Object.keys(errors).length) return this.setState(s => ({ itemForm: { ...s.itemForm, errors } }));
+    const t = this.now(), old = f.id && this.state.items.find(i => i.id === f.id);
+    const item = old ? { ...old, name, location: f.location.trim(), code, opening_qty: Number(op), updated_at: t }
+      : { id: this.uid(), name, location: f.location.trim(), code, opening_qty: Number(op), opening_month: this.today().slice(0, 7), created_at: t, updated_at: t, deleted_at: null };
+    await this.saveItem(item);
+    this.setState({ overlay: null, itemForm: null }); this.showToast(old ? 'Info barang diperbarui' : `“${name}” ditambahkan`);
+  }
+
+  /* ==================== [JS-RECORD] Catat stok: validation + save ==================== */
+  openRecord(item, mv = null, source = 'manual') {
+    this.setState({ overlay: 'record', recForm: {
+      itemId: item.id, moveId: mv ? mv.id : null, source, date: mv ? mv.date : this.today(),
+      masuk: mv && mv.qty > 0 ? String(mv.qty) : '', keluar: mv && mv.qty < 0 ? String(-mv.qty) : '',
+      note: mv ? mv.note || '' : '', error: '', warn: '', ack: false } });
+  }
+  setRF(patch) { this.setState(s => ({ recForm: { ...s.recForm, ...patch, error: '', warn: '', ack: false } })); }
+  async submitRecord() {
+    const f = this.state.recForm, item = this.state.items.find(i => i.id === f.itemId), err = error => this.setState(s => ({ recForm: { ...s.recForm, error } }));
+    const td = this.today(), minD = item.opening_month + '-01';
+    if (!f.date) return err('Pilih tanggal.');
+    if (f.date > td) return err('Tanggal tidak boleh di masa depan.');
+    if (f.date < minD) return err(`Tanggal tidak boleh sebelum ${this.monthLabel(item.opening_month)} (awal pencatatan barang ini).`);
+    const m = f.masuk.trim(), k = f.keluar.trim();
+    if ((m && !/^\d+$/.test(m)) || (k && !/^\d+$/.test(k))) return err('Jumlah harus bilangan bulat positif.');
+    const mv = Number(m || 0), kv = Number(k || 0);
+    if (mv > 0 && kv > 0) return err('Isi salah satu saja: Stok Masuk atau Stok Keluar.');
+    if (!mv && !kv) return err('Isi Stok Masuk (+) atau Stok Keluar (−).');
+    const qty = mv || -kv;
+    const old = f.moveId && this.state.moves.find(x => x.id === f.moveId);
+    const after = this.stockAt(item, td.slice(0, 7)).total - (old && !old.deleted_at ? old.qty : 0) + qty;
+    if (after < 0 && !f.ack) return this.setState(s => ({ recForm: { ...s.recForm, ack: true, warn: `Stok akan menjadi ${this.num(after)} dos. Tekan Selesai sekali lagi untuk tetap menyimpan.` } }));
+    const t = this.now();
+    const rec = old ? { ...old, date: f.date, qty, note: f.note.trim(), updated_at: t }
+      : { id: this.uid(), item_id: item.id, date: f.date, qty, note: f.note.trim(), source: f.source, created_at: t, updated_at: t, deleted_at: null };
+    await this.saveMove(rec);
+    this.setState({ overlay: null, recForm: null }); this.showToast(old ? 'Catatan diperbarui' : `Stok dicatat: ${qty > 0 ? '+' : '−'}${Math.abs(qty)} dos`);
+  }
+
+  /* ==================== [JS-SCAN] Barcode: camera + typed/hardware input ==================== */
+  openScan(purpose = 'record') { this.setState({ overlay: 'scan', scan: { purpose, code: '', error: '', notFound: false, camOn: false, camMsg: '' } }); }
+  setScan(patch) { this.setState(s => ({ scan: { ...s.scan, ...patch } })); }
+  closeScan() { this.stopCam(); const back = this.state.scan && this.state.scan.purpose === 'fill' ? 'item' : null; this.setState({ overlay: back, scan: null }); }
+  submitScan(codeIn) {
+    const code = (codeIn ?? this.state.scan.code).trim();
+    if (!code) return this.setScan({ error: 'Masukkan kode barang.', notFound: false });
+    if (this.state.scan.purpose === 'fill') { this.stopCam(); return this.setState(s => ({ overlay: 'item', scan: null, itemForm: { ...s.itemForm, code, errors: { ...s.itemForm.errors, code: '' } } })); }
+    const item = this.state.items.find(i => i.code === code);
+    if (item && !item.deleted_at) { this.stopCam(); this.setState({ scan: null }); return this.openRecord(item, null, 'scan'); }
+    if (item) return this.setScan({ code, error: `“${item.name}” sudah dihapus. Pulihkan lewat Pengaturan.`, notFound: false });
+    this.setScan({ code, error: `Kode ${code} belum terdaftar.`, notFound: true });
+  }
+  toggleCam() { if (this.state.scan.camOn) { this.stopCam(); this.setScan({ camOn: false, camMsg: '' }); } else this.startCam(); }
+  startCam() {
+    this.setState(s => ({ scan: { ...s.scan, camOn: true, camMsg: 'Menyalakan kamera…' } }), async () => {
+      const v = this.videoRef.current; if (!v) return;
+      try {
+        if ('BarcodeDetector' in window) {
+          this._stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+          v.srcObject = this._stream; await v.play();
+          const det = new window.BarcodeDetector();
+          this.setScan({ camMsg: 'Arahkan kamera ke barcode.' });
+          const loop = async () => {
+            if (!this._stream) return;
+            try { const r = await det.detect(v); if (r.length) return this.onDetected(r[0].rawValue); } catch (e) {}
+            this._loop = setTimeout(loop, 250);
+          };
+          loop();
+        } else {
+          const mod = await import('https://esm.sh/@zxing/browser@0.1.5');
+          const reader = new mod.BrowserMultiFormatReader();
+          this.setScan({ camMsg: 'Arahkan kamera ke barcode.' });
+          this._zx = await reader.decodeFromConstraints({ video: { facingMode: 'environment' } }, v, res => { if (res) this.onDetected(res.getText()); });
+        }
+      } catch (e) { this.stopCam(); this.setScan({ camOn: false, camMsg: 'Kamera tidak bisa dibuka. Ketik kodenya atau gunakan alat pemindai.' }); }
+    });
+  }
+  stopCam() {
+    clearTimeout(this._loop);
+    if (this._stream) { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; }
+    if (this._zx) { try { this._zx.stop(); } catch (e) {} this._zx = null; }
+  }
+  onDetected(code) { if (navigator.vibrate) navigator.vibrate(60); this.stopCam(); this.setScan({ code, camOn: false, camMsg: '' }); this.submitScan(code); }
+
+  /* ==================== [JS-DELETE] Soft delete + restore ==================== */
+  ask(confirm) { this.setState(s => ({ confirm: { ...confirm, back: s.overlay }, overlay: 'confirm' })); }
+  askDeleteItem(i) {
+    this.ask({ title: `Hapus "${i.name}"?`, body: 'Barang disembunyikan dari daftar. Catatan stoknya tetap tersimpan, dan barang bisa dipulihkan lewat Cadangan & pengaturan.', label: 'Hapus',
+      run: async () => { await this.saveItem({ ...i, deleted_at: this.now(), updated_at: this.now() }); if (this.state.detailId === i.id) this.setState({ detailId: null }); this.showToast(`“${i.name}” dihapus`); } });
+  }
+  askDeleteMove(m) {
+    this.ask({ title: 'Hapus catatan ini?', body: 'Catatan disembunyikan dan tidak dihitung dalam total stok. Centang "Tampilkan catatan yang dihapus" untuk melihat atau memulihkannya.', label: 'Hapus',
+      run: async () => { await this.saveMove({ ...m, deleted_at: this.now(), updated_at: this.now() }); this.showToast('Catatan dihapus'); } });
+  }
+  async restoreMove(m) { await this.saveMove({ ...m, deleted_at: null, updated_at: this.now() }); this.showToast('Catatan dipulihkan'); }
+  async restoreItem(i) { await this.saveItem({ ...i, deleted_at: null, updated_at: this.now() }); this.showToast(`“${i.name}” dipulihkan`); }
+  async runConfirm() { const c = this.state.confirm; this.setState({ overlay: null, confirm: null }); await c.run(); }
+
+  /* ==================== [JS-BACKUP] Export JSON / CSV, import ==================== */
+  download(name, text, type) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  exportJSON() {
+    const { items, moves } = this.state;
+    this.download(`toko-anda-cadangan-${this.today()}.json`, JSON.stringify({ app: 'toko-anda-stok', version: 1, exported_at: this.now(), items, movements: moves }, null, 2), 'application/json');
+    this.showToast('Cadangan diunduh');
+  }
+  exportCSV() {
+    const cur = this.today().slice(0, 7), q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [['Nama Barang', 'Kode', 'Lokasi', `Stok Awal ${this.monthLabel(cur)} (dos)`, 'Total Stok (dos)'].map(q).join(',')];
+    this.state.items.filter(i => !i.deleted_at).sort((a, b) => a.name.localeCompare(b.name, 'id')).forEach(i => { const st = this.stockAt(i, cur); lines.push([i.name, i.code, i.location, st.opening, st.total].map(q).join(',')); });
+    this.download(`toko-anda-stok-${cur}.csv`, '\ufeff' + lines.join('\r\n'), 'text/csv');
+    this.showToast('Laporan diunduh');
+  }
+  async importFile(e) {
+    const file = e.target.files && e.target.files[0]; e.target.value = ''; if (!file) return;
+    try {
+      const d = JSON.parse(await file.text());
+      if (!Array.isArray(d.items) || !Array.isArray(d.movements)) throw 0;
+      this.ask({ title: 'Pulihkan dari cadangan?', body: `Semua barang dan catatan di perangkat ini akan diganti dengan isi file (${d.items.length} barang, ${d.movements.length} catatan). PIN tidak berubah.`, label: 'Ganti data',
+        run: async () => { await this.replaceAll('items', d.items); await this.replaceAll('movements', d.movements); this.setState({ items: d.items, moves: d.movements, detailId: null }); this.showToast('Data dipulihkan dari cadangan'); } });
+    } catch (x) { this.showToast('File cadangan tidak valid'); }
+  }
+
+  /* ==================== [JS-RENDER] Values & handlers used by the HTML ==================== */
+  renderVals() {
+    const s = this.state, td = this.today(), cur = td.slice(0, 7);
+    const mode = this.props.layoutMode ?? 'auto', narrow = s.width < 760;
+    const cards = mode === 'cards' || (mode === 'auto' && narrow);
+    const active = s.items.filter(i => !i.deleted_at), q = s.search.trim().toLowerCase();
+    const list = active.filter(i => !q || [i.name, i.location, i.code].some(v => (v || '').toLowerCase().includes(q)))
+      .sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
+    const rows = list.map(i => { const st = this.stockAt(i, cur); return {
+      id: i.id, name: i.name, code: i.code, hasCode: !!i.code, location: i.location || '—',
+      opening: this.num(st.opening), total: this.num(st.total),
+      onOpen: () => this.setState({ detailId: i.id, detailMonth: cur, detailSearch: '', showDeleted: false }),
+      onAdd: () => this.openRecord(i), onDelete: () => this.askDeleteItem(i) }; });
+
+    let detail = null;
+    const di = s.detailId && s.items.find(i => i.id === s.detailId);
+    if (di) {
+      const M = s.detailMonth || cur, st = this.stockAt(di, M), dq = s.detailSearch.trim().toLowerCase();
+      const mv = s.moves.filter(m => m.item_id === di.id && m.date.slice(0, 7) === M && (s.showDeleted || !m.deleted_at))
+        .filter(m => !dq || this.dateLabel(m.date).toLowerCase().includes(dq) || m.date.includes(dq) || (m.note || '').toLowerCase().includes(dq))
+        .sort((a, b) => a.date.localeCompare(b.date) || a.created_at.localeCompare(b.created_at));
+      const prevDisabled = M <= di.opening_month, nextDisabled = M >= cur;
+      detail = {
+        name: di.name, location: di.location || '—', code: di.code || '—', monthLabel: this.monthLabel(M),
+        opening: this.num(st.opening), total: this.num(st.total), search: s.detailSearch, showDeleted: s.showDeleted,
+        wide: !narrow, narrow, prevDisabled, nextDisabled, prevOpacity: prevDisabled ? 0.35 : 1, nextOpacity: nextDisabled ? 0.35 : 1,
+        empty: !mv.length, emptyText: dq ? 'Tidak ada catatan yang cocok.' : 'Belum ada catatan stok di bulan ini.',
+        rows: mv.map(m => ({ dateLabel: this.dateLabel(m.date), qtyLabel: (m.qty > 0 ? '+' : '−') + Math.abs(m.qty), isIn: m.qty > 0, isOut: m.qty < 0,
+          note: m.note || '—', isDeleted: !!m.deleted_at, isActive: !m.deleted_at, opacity: m.deleted_at ? 0.55 : 1,
+          onEdit: () => this.openRecord(di, m), onDelete: () => this.askDeleteMove(m), onRestore: () => this.restoreMove(m) })),
+        onPrev: () => !prevDisabled && this.setState({ detailMonth: this.addMonth(M, -1) }),
+        onNext: () => !nextDisabled && this.setState({ detailMonth: this.addMonth(M, 1) }),
+        onSearch: e => this.setState({ detailSearch: e.target.value }),
+        onToggleDeleted: e => this.setState({ showDeleted: e.target.checked }),
+        onAddRecord: () => this.openRecord(di), onEditItem: () => this.openEditItem(di),
+        onClose: () => this.setState({ detailId: null }),
+      };
+    }
+
+    const f = s.itemForm, itemForm = f && {
+      ...f, title: f.id ? 'Edit barang' : 'Barang baru',
+      openingHint: f.id ? `Jumlah dos pada awal ${this.monthLabel((s.items.find(i => i.id === f.id) || {}).opening_month || cur)}` : 'Jumlah dos pada awal bulan',
+      errName: !!f.errors.name, errCode: !!f.errors.code, errOpening: !!f.errors.opening,
+      onName: e => this.setIF('name', e.target.value), onLocation: e => this.setIF('location', e.target.value),
+      onCode: e => this.setIF('code', e.target.value), onOpening: e => this.setIF('opening', e.target.value),
+      onScan: () => this.openScan('fill'), onSave: () => this.submitItem(), onCancel: () => this.setState({ overlay: null, itemForm: null }),
+    };
+
+    const r = s.recForm, rit = r && s.items.find(i => i.id === r.itemId), rec = r && rit && {
+      ...r, name: rit.name, code: rit.code, currentTotal: this.num(this.stockAt(rit, cur).total),
+      modeLabel: r.moveId ? 'Edit catatan.' : 'Catat stok.', fromScan: r.source === 'scan' && !r.moveId,
+      minDate: rit.opening_month + '-01', maxDate: td, hasError: !!r.error, hasWarn: !!r.warn,
+      onDate: e => this.setRF({ date: e.target.value }),
+      onMasuk: e => this.setRF(e.target.value ? { masuk: e.target.value, keluar: '' } : { masuk: '' }),
+      onKeluar: e => this.setRF(e.target.value ? { keluar: e.target.value, masuk: '' } : { keluar: '' }),
+      onNote: e => this.setRF({ note: e.target.value }),
+      onSave: () => this.submitRecord(), onCancel: () => this.setState({ overlay: null, recForm: null }),
+    };
+
+    const sc = s.scan, scan = sc && {
+      ...sc, hasError: !!sc.error, hasCamMsg: !!sc.camMsg, canCam: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+      camLabel: sc.camOn ? 'Matikan kamera' : 'Pakai kamera',
+      onCode: e => this.setScan({ code: e.target.value, error: '', notFound: false }),
+      onKey: e => { if (e.key === 'Enter') { e.preventDefault(); this.submitScan(); } },
+      onSubmit: () => this.submitScan(), onClose: () => this.closeScan(), onCam: () => this.toggleCam(),
+      onCreate: () => { const code = this.state.scan.code.trim(); this.stopCam(); this.setState({ scan: null }); this.openNewItem(code); },
+    };
+
+    const c = s.confirm, confirm = c && { ...c,
+      onCancel: () => this.setState({ overlay: c.back || null, confirm: null }), onConfirm: () => this.runConfirm() };
+
+    const deleted = s.items.filter(i => i.deleted_at).sort((a, b) => a.name.localeCompare(b.name, 'id'));
+    const pf = s.pinForm, setPF = (k, v) => this.setState(st => ({ pinForm: { ...st.pinForm, [k]: v.replace(/\D/g, '').slice(0, 6), error: '' } }));
+
+    return {
+      locked: s.ready && s.locked, unlocked: !s.ready || !s.locked,
+      pinTitle: { enter: 'Masukkan PIN', create: 'Buat PIN baru', confirm: 'Ulangi PIN' }[s.pinStep],
+      pinSub: { enter: 'Masukkan 6 digit PIN untuk membuka aplikasi.', create: 'Buat 6 digit PIN. PIN diminta setiap kali aplikasi dibuka.', confirm: 'Masukkan PIN yang sama sekali lagi.' }[s.pinStep],
+      pinDots: [0, 1, 2, 3, 4, 5].map(i => ({ filled: i < s.pin.length })),
+      hasPinError: !!s.pinError, pinError: s.pinError,
+      keys: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map(k => ({ label: k, blank: k === '', isDigit: /\d/.test(k), isDel: k === 'del',
+        onClick: () => k === 'del' ? this.pinBack() : this.pinPress(k) })),
+      isStok: s.view === 'stok', isSettings: s.view === 'settings',
+      goStok: () => this.setState({ view: 'stok' }), goSettings: () => this.setState({ view: 'settings' }), logout: () => this.logout(),
+      monthLabel: this.monthLabel(cur), search: s.search, onSearch: e => this.setState({ search: e.target.value }),
+      countLabel: `${list.length} barang`, rows, showTable: !cards, showCards: cards,
+      noItems: s.ready && !active.length, noResults: !!active.length && !list.length,
+      openScan: () => this.openScan('record'), openNewItem: () => this.openNewItem(),
+      hasDetail: !!detail, detail,
+      ovItem: s.overlay === 'item' && !!itemForm, itemForm,
+      ovRecord: s.overlay === 'record' && !!rec, rec,
+      ovScan: s.overlay === 'scan' && !!scan, scan,
+      ovConfirm: s.overlay === 'confirm' && !!confirm, confirm,
+      hasToast: !!s.toast, toast: s.toast,
+      deletedItems: deleted.map(i => ({ name: i.name, meta: `${i.code ? 'Kode ' + i.code + ' · ' : ''}Dihapus ${this.dateLabel(i.deleted_at.slice(0, 10))}`, onRestore: () => this.restoreItem(i) })),
+      noDeleted: !deleted.length,
+      exportJSON: () => this.exportJSON(), exportCSV: () => this.exportCSV(),
+      pickImport: () => this.fileRef.current && this.fileRef.current.click(), onImportFile: e => this.importFile(e),
+      pinForm: { ...pf, hasError: !!pf.error, onOld: e => setPF('old', e.target.value), onNew: e => setPF('nw', e.target.value), onCf: e => setPF('cf', e.target.value), onSave: () => this.changePin() },
+      nameRef: this.nameRef, masukRef: this.masukRef, scanRef: this.scanRef, cancelRef: this.cancelRef, videoRef: this.videoRef, fileRef: this.fileRef,
+    };
+  }
+}
+</script>
+</body>
+</html>
