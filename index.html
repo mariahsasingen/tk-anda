@@ -65,7 +65,7 @@ a{color:#a3182c}a:hover{color:#7d1020}
         <p style="margin:6px 0 0;font-size:15px;color:#56627a;line-height:1.5;text-wrap:pretty">{{ pinSub }}</p>
       </div>
       <div style="display:flex;gap:10px">
-        <sc-for list="{{ pinDots }}" as="d" hint-placeholder-count="6">
+        <sc-for list="{{ pinDots }}" as="d" hint-placeholder-count="4">
           <div style="width:44px;height:54px;border:1.5px solid #c9cfd8;border-radius:10px;display:flex;align-items:center;justify-content:center;background:#fff">
             <sc-if value="{{ d.filled }}"><div style="width:14px;height:14px;border-radius:50%;background:#14223a"></div></sc-if>
           </div>
@@ -161,7 +161,7 @@ a{color:#a3182c}a:hover{color:#7d1020}
           <div style="padding:14px 20px;font-size:18px;color:#2c3950;min-width:0;overflow-wrap:anywhere">{{ r.location }}</div>
           <div style="padding:14px 20px;text-align:right;font-size:18px;color:#2c3950">{{ r.opening }}</div>
           <div style="padding:14px 20px;text-align:right;font-size:22px;font-weight:800">{{ r.total }}</div>
-          <div style="padding:14px 10px 14px 20px"><button onClick="{{ r.onOpen }}" style="height:46px;padding:0 18px;border:1px solid #c9cfd8;border-radius:8px;background:#fff;font-size:18px;font-weight:500;cursor:pointer" style-hover="background:#f3f5f8">Buka</button></div>
+          <div style="padding:14px 10px 14px 20px"><button onClick="{{ r.onOpen }}" style="height:46px;padding:0 18px;border:1px solid #c9cfd8;border-radius:8px;background:#fff;font-size:18px;font-weight:500;cursor:pointer" style-hover="background:#f3f5f8">Rincian</button></div>
           <div style="padding:14px 10px"><button onClick="{{ r.onAdd }}" aria-label="Catat stok" style="width:56px;height:46px;border:1px solid #c9cfd8;border-radius:8px;background:#fff;font-size:22px;font-weight:600;cursor:pointer" style-hover="background:#f3f5f8">+</button></div>
           <div style="padding:14px 10px"><button onClick="{{ r.onDelete }}" style="height:46px;padding:0 18px;border:1px solid #c8372d;border-radius:8px;background:#fff;color:#b3261e;font-size:18px;font-weight:500;cursor:pointer" style-hover="background:#fdf1f0">Hapus</button></div>
         </div>
@@ -191,7 +191,7 @@ a{color:#a3182c}a:hover{color:#7d1020}
             </div>
           </div>
           <div style="display:flex;gap:8px">
-            <button onClick="{{ r.onOpen }}" style="flex:1;height:46px;border:1px solid #c9cfd8;border-radius:8px;background:#fff;font-size:16px;font-weight:600;cursor:pointer">Buka</button>
+            <button onClick="{{ r.onOpen }}" style="flex:1;height:46px;border:1px solid #c9cfd8;border-radius:8px;background:#fff;font-size:16px;font-weight:600;cursor:pointer">Rincian</button>
             <button onClick="{{ r.onAdd }}" style="flex:1;height:46px;border:1px solid #c9cfd8;border-radius:8px;background:#fff;font-size:16px;font-weight:600;cursor:pointer">+ Catat</button>
             <button onClick="{{ r.onDelete }}" style="height:46px;padding:0 14px;border:1px solid #c8372d;border-radius:8px;background:#fff;color:#b3261e;font-size:16px;font-weight:600;cursor:pointer">Hapus</button>
           </div>
@@ -248,7 +248,7 @@ a{color:#a3182c}a:hover{color:#7d1020}
     <div style="background:#fff;border:1px solid #dde1e7;border-radius:14px;overflow:hidden">
       <div style="padding:18px 20px;background:#f5f6f8">
         <h2 style="margin:0;font-size:19px;font-weight:800">Ganti PIN</h2>
-        <p style="margin:4px 0 0;font-size:14px;color:#56627a">PIN terdiri dari 6 angka.</p>
+        <p style="margin:4px 0 0;font-size:14px;color:#56627a">PIN terdiri dari 4 angka.</p>
       </div>
       <div style="padding:18px 20px;border-top:1px solid #e6e9ee;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;align-items:end">
         <label style="display:flex;flex-direction:column;gap:6px;font-size:15px;font-weight:600">PIN lama
@@ -642,10 +642,10 @@ class Component extends DCLogic {
   /* ==================== [JS-PIN] PIN lock, logout, change PIN ==================== */
   async hash(salt, pin) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + ':' + pin)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); }
   pinPress(d) {
-    if (this.state.pin.length >= 6) return;
+    if (this.state.pin.length >= 4) return;
     const pin = this.state.pin + d;
     this.setState({ pin, pinError: '' });
-    if (pin.length === 6) setTimeout(() => this.pinDone(pin), 150);
+    if (pin.length === 4) setTimeout(() => this.pinDone(pin), 150);
   }
   pinBack() { this.setState(s => ({ pin: s.pin.slice(0, -1), pinError: '' })); }
   async pinDone(pin) {
@@ -665,7 +665,7 @@ class Component extends DCLogic {
   async changePin() {
     const f = this.state.pinForm, set = error => this.setState(s => ({ pinForm: { ...s.pinForm, error } }));
     if (await this.hash(this.state.pinRec.salt, f.old) !== this.state.pinRec.hash) return set('PIN lama salah.');
-    if (!/^\d{6}$/.test(f.nw)) return set('PIN baru harus 6 angka.');
+    if (!/^\d{4}$/.test(f.nw)) return set('PIN baru harus 4 angka.');
     if (f.nw !== f.cf) return set('Ulangi PIN baru tidak sama.');
     const salt = this.uid(); const rec = { key: 'pin', salt, hash: await this.hash(salt, f.nw) };
     await this.putMany('settings', [rec]);
@@ -879,13 +879,13 @@ class Component extends DCLogic {
       onCancel: () => this.setState({ overlay: c.back || null, confirm: null }), onConfirm: () => this.runConfirm() };
 
     const deleted = s.items.filter(i => i.deleted_at).sort((a, b) => a.name.localeCompare(b.name, 'id'));
-    const pf = s.pinForm, setPF = (k, v) => this.setState(st => ({ pinForm: { ...st.pinForm, [k]: v.replace(/\D/g, '').slice(0, 6), error: '' } }));
+    const pf = s.pinForm, setPF = (k, v) => this.setState(st => ({ pinForm: { ...st.pinForm, [k]: v.replace(/\D/g, '').slice(0, 4), error: '' } }));
 
     return {
       locked: s.ready && s.locked, unlocked: !s.ready || !s.locked,
       pinTitle: { enter: 'Masukkan PIN', create: 'Buat PIN baru', confirm: 'Ulangi PIN' }[s.pinStep],
-      pinSub: { enter: 'Masukkan 6 digit PIN untuk membuka aplikasi.', create: 'Buat 6 digit PIN. PIN diminta setiap kali aplikasi dibuka.', confirm: 'Masukkan PIN yang sama sekali lagi.' }[s.pinStep],
-      pinDots: [0, 1, 2, 3, 4, 5].map(i => ({ filled: i < s.pin.length })),
+      pinSub: { enter: 'Masukkan 4 digit PIN untuk membuka aplikasi.', create: 'Buat 4 digit PIN. PIN diminta setiap kali aplikasi dibuka.', confirm: 'Masukkan PIN yang sama sekali lagi.' }[s.pinStep],
+      pinDots: [0, 1, 2, 3].map(i => ({ filled: i < s.pin.length })),
       hasPinError: !!s.pinError, pinError: s.pinError,
       keys: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map(k => ({ label: k, blank: k === '', isDigit: /\d/.test(k), isDel: k === 'del',
         onClick: () => k === 'del' ? this.pinBack() : this.pinPress(k) })),
